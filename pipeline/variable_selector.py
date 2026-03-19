@@ -381,6 +381,84 @@ def _select_aux_var(
     return best_aux, rationale, corr_matrix, new_flags
 
 
+def _pick_aux_first(
+    aux_pool: list[str],
+    all_eligible: list[str],
+    df: Optional[pd.DataFrame],
+    threshold: float = 0.10,
+) -> tuple[str, str, dict, list[str]]:
+    """Reserve aux_var from aux_pool before key_var selection.
+
+    aux_pool    — eligible vars allowed to become aux (key IVs excluded by caller)
+    all_eligible — full eligible pool (used for correlation context + matrix)
+    """
+    new_flags: list[str] = []
+    new_flags.append(
+        "MAR mechanism: power-law P(missing) ∝ aux^1.5 (PI instructions). "
+        "CONTEXT.md sigmoid formula is incorrect — see plan Gap 1."
+    )
+
+    if df is None:
+        if aux_pool:
+            return aux_pool[0], "selected first available (no data for correlation check)", {}, new_flags
+        return "", "no eligible aux candidates", {}, new_flags
+
+    # Filter: < 5% missing
+    candidates = [v for v in aux_pool if v in df.columns and df[v].isna().mean() < 0.05]
+
+    # Prefer non-negative (power-law compatibility)
+    non_neg = [v for v in candidates if (df[v].dropna() >= 0).all()]
+    search_pool = non_neg if non_neg else candidates
+    if candidates and not non_neg:
+        new_flags.append(
+            "aux var may be negative — power-law MAR formula requires non-negative "
+            "values; consider log transform"
+        )
+
+    def _mean_r_with_others(v: str, thresh: float) -> tuple[bool, float]:
+        others = [w for w in all_eligible if w != v and w in df.columns]
+        if not others:           # no other vars to correlate with → accept
+            return True, 0.0
+        rs = []
+        for w in others:
+            sub = df[[v, w]].dropna()
+            if len(sub) < 3:
+                continue
+            r = sub[v].corr(sub[w])
+            if not np.isnan(r):
+                rs.append(abs(r))
+        if not rs:
+            return False, 0.0
+        n_corr  = sum(1 for r in rs if r >= thresh)
+        majority = n_corr >= math.ceil(len(others) / 2)
+        return majority, float(np.mean(rs))
+
+    best_aux, best_mean_r = "", -1.0
+    for v in search_pool:
+        majority, mean_r = _mean_r_with_others(v, threshold)
+        if majority and mean_r > best_mean_r:
+            best_aux, best_mean_r = v, mean_r
+
+    # Threshold relaxation
+    if not best_aux and threshold > 0.05:
+        new_flags.append("aux var correlation relaxed to 0.05")
+        for v in search_pool:
+            majority, mean_r = _mean_r_with_others(v, 0.05)
+            if majority and mean_r > best_mean_r:
+                best_aux, best_mean_r = v, mean_r
+
+    if not best_aux:
+        new_flags.append("no suitable aux var found — human must select")
+        return "", "no suitable aux var found", {}, new_flags
+
+    corr_matrix = _build_corr_matrix([v for v in all_eligible if v], df)
+    rationale = (
+        f"mean |r| with other eligible vars: {best_mean_r:.3f}; "
+        f"non-negative: {(df[best_aux].dropna() >= 0).all()}"
+    )
+    return best_aux, rationale, corr_matrix, new_flags
+
+
 # ── Confidence ────────────────────────────────────────────────────────────────
 
 def _determine_confidence(
@@ -642,16 +720,26 @@ def select_variables(
 
     # ── Eligibility ────────────────────────────────────────────────────────────
     eligible_vars, excluded_vars = _filter_eligible_vars(spec, data)
-
-    # ── Score and select key_vars ──────────────────────────────────────────────
-    ranked = _score_and_rank(eligible_vars, spec, data)
-
     flags: list[str] = []
 
+    # ── Step A: reserve aux_var first (key IVs protected from aux pool) ────────
+    key_iv_set = set(spec.get("key_independent_vars") or [])
+    aux_pool = [v for v in eligible_vars if v not in key_iv_set] or eligible_vars
+    aux_var, aux_rationale, corr_matrix, aux_flags = _pick_aux_first(
+        aux_pool, eligible_vars, data
+    )
+    flags.extend(aux_flags)
+
+    # ── Step B: select key_vars from remaining eligible pool ───────────────────
+    key_pool = [v for v in eligible_vars if v != aux_var]
+    ranked = _score_and_rank(key_pool, spec, data)
+
     if len(ranked) < MIN_KEY_VARS:
+        _aux_label = repr(aux_var) if aux_var else "none"
         flags.append(
-            f"only {len(ranked)} eligible variable(s) found — "
-            f"need at least {MIN_KEY_VARS}; human must select"
+            f"only {len(ranked)} distinct variable(s) remain for key_vars "
+            f"(after reserving aux_var={_aux_label}) — "
+            f"need at least {MIN_KEY_VARS}; human must select or paper may be infeasible"
         )
         key_vars: list[str] = []
         key_var_rationale: dict[str, str] = {}
@@ -659,12 +747,6 @@ def select_variables(
         selected_ranked = ranked[:MAX_KEY_VARS]
         key_vars = [v for v, _, _ in selected_ranked]
         key_var_rationale = {v: rat for v, _, rat in selected_ranked}
-
-    # ── Aux variable ───────────────────────────────────────────────────────────
-    aux_var, aux_rationale, corr_matrix, aux_flags = _select_aux_var(
-        key_vars, eligible_vars, data
-    )
-    flags.extend(aux_flags)
 
     # ── Confidence ─────────────────────────────────────────────────────────────
     confidence = _determine_confidence(spec, ranked, aux_var, data_available)

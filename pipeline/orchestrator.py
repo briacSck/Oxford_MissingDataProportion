@@ -97,18 +97,24 @@ def run_paper(paper_dir: str, use_llm_gates: bool = False,
         Any unhandled exception from an agent is caught, logged, and re-raised
         so ``run_all`` can continue with the next paper.
     """
-    paper_name = os.path.basename(paper_dir.rstrip("/\\"))
+    _paper_dir = Path(paper_dir)
+    paper_name = _paper_dir.name
+    papers_root = _paper_dir.parent
     logger.info("Starting pipeline for %s", paper_name)
+    if not _paper_dir.is_dir():
+        raise RuntimeError(
+            f"Paper directory not found: {_paper_dir}\n"
+            f"Expected a path like papers/Paper_SMJ3560 (with the Paper_ prefix)."
+        )
 
     try:
         # ── Step 1: Load or parse spec ────────────────────────────────────────
-        spec_path = Path(paper_dir) / "spec.json"
+        spec_path = _paper_dir / "spec.json"
         if spec_path.exists():
             import json
             spec = json.loads(spec_path.read_text(encoding="utf-8"))
         else:
             from pipeline.parser_agent import parse_paper
-            papers_root = Path(paper_dir).parent
             spec = parse_paper(paper_name, papers_root)
 
         logger.info("[%s] Parser complete: estimator=%s", paper_name, spec.get("estimator"))
@@ -126,7 +132,7 @@ def run_paper(paper_dir: str, use_llm_gates: bool = False,
 
         # ── Step 2: Prepare baseline dataset ─────────────────────────────────
         from pipeline.data_prep_agent import prepare_baseline
-        baseline_path = Path(paper_dir) / "baseline.parquet"
+        baseline_path = _paper_dir / "baseline.parquet"
         raw_data_path = spec.get("source_data_file")
 
         if not baseline_path.exists():
@@ -148,7 +154,7 @@ def run_paper(paper_dir: str, use_llm_gates: bool = False,
         published_sig_val: str | None = None
         if use_llm_gates:
             try:
-                info_df = pd.read_excel(str(Path(paper_dir) / "paper_info.xlsx"))
+                info_df = pd.read_excel(str(_paper_dir / "paper_info.xlsx"))
                 if "published_coef_main" in info_df.columns:
                     v = info_df["published_coef_main"].iloc[0]
                     published_coef_val = float(v) if pd.notna(v) else None
@@ -168,7 +174,7 @@ def run_paper(paper_dir: str, use_llm_gates: bool = False,
         if use_llm_gates:
             from pipeline.llm_agents.llm_orchestrator import llm_gate1
             gate1_ok = llm_gate1(
-                paper_name, paper_dir,
+                paper_name, str(_paper_dir),
                 published_coef_val, published_sig_val,
                 verification.get("coef_estimate", 0.0),
                 verification.get("pvalue_estimate", 1.0),
@@ -181,7 +187,6 @@ def run_paper(paper_dir: str, use_llm_gates: bool = False,
 
         # ── Step 4: Select variables + GATE 2 ────────────────────────────────
         from pipeline.variable_selector import select_variables
-        papers_root = Path(paper_dir).parent
         selection = select_variables(
             paper_name, str(papers_root), spec=spec, data=baseline_df,
             auto_confirm=use_llm_gates,   # skip interactive prompt when in LLM-gate mode
@@ -198,7 +203,7 @@ def run_paper(paper_dir: str, use_llm_gates: bool = False,
             gate2_ok = llm_gate2(
                 paper_name, spec,
                 selection["key_vars"], selection["aux_var"],
-                baseline_df, paper_dir,
+                baseline_df, str(_paper_dir),
             )
         else:
             gate2_ok = _human_gate("Variable Selection — final confirm", gate2_summary)
@@ -211,28 +216,28 @@ def run_paper(paper_dir: str, use_llm_gates: bool = False,
             str(baseline_path),
             selection["key_vars"],
             selection["aux_var"],
-            paper_dir,
+            str(_paper_dir),
         )
         logger.info("[%s] MAR datasets generated: %d vars", paper_name, len(mar_paths))
 
         # ── Step 6: Apply listwise deletion ──────────────────────────────────
         from pipeline.listwise_agent import apply_listwise
-        ld_map = apply_listwise(paper_dir)
+        ld_map = apply_listwise(str(_paper_dir))
         total_ld = sum(len(v) for v in ld_map.values())
         logger.info("[%s] Listwise deletion complete: %d files", paper_name, total_ld)
 
         # ── Step 7: Run regressions ───────────────────────────────────────────
         from pipeline.regression_runner import run_all_regressions
-        results_xlsx = run_all_regressions(paper_dir, spec)
+        results_xlsx = run_all_regressions(str(_paper_dir), spec)
         logger.info("[%s] Regressions complete: %s", paper_name, results_xlsx)
 
         # ── Step 8: QC + GATE 3 ──────────────────────────────────────────────
         from pipeline.qc_agent import run_qc
-        qc_passed = run_qc(paper_dir)
-        qc_report_text = (Path(paper_dir) / "qc_report.txt").read_text(encoding="utf-8")
+        qc_passed = run_qc(str(_paper_dir))
+        qc_report_text = (_paper_dir / "qc_report.txt").read_text(encoding="utf-8")
         if use_llm_gates:
             from pipeline.llm_agents.llm_orchestrator import llm_gate3
-            gate3_ok = llm_gate3(paper_name, paper_dir)
+            gate3_ok = llm_gate3(paper_name, str(_paper_dir))
         else:
             gate3_ok = _human_gate("QC Review", qc_report_text)
         if not gate3_ok:

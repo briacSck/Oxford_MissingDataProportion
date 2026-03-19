@@ -1,0 +1,11 @@
+QC Report — Paper_Mapping2024  [2026-03-19 23:18:56]
+RANDOM_SEED=2026 confirmed
+[PASS] Check 1: Row count — 29 rows (K=4×7+1)
+[PASS] Check 2: File count — 28 missing, 28 listwise (expected 28 each)
+[PASS] Check 3: Proportion coverage — all 7 labels present for each key var
+[PASS] Check 4: Baseline sign match — no published coef provided, skipped
+[PASS] Check 5: No all-NaN columns
+[PASS] Check 6: N monotonicity — N is non-increasing for all key vars
+[INFO] Check 7: RANDOM_SEED=2026 confirmed
+---------------------------------------
+QC PASSED: ready for human review

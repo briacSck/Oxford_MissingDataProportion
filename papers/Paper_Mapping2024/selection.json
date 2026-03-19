@@ -1,0 +1,61 @@
+{
+  "paper_id": "Paper_Mapping2024",
+  "key_vars": [
+    "log_pop_black_aa",
+    "log_total_bachelor_deg",
+    "log_pop_total_poverty",
+    "log_total_social_cap"
+  ],
+  "aux_var": "log_pop_total",
+  "aux_var_description": "",
+  "key_var_rationale": {
+    "log_pop_black_aa": "source: key IV; missing: 0.0% \u22650: Y",
+    "log_total_bachelor_deg": "source: control; missing: 0.0% \u22650: Y",
+    "log_pop_total_poverty": "source: control; missing: 0.0% \u22650: Y",
+    "log_total_social_cap": "source: control; missing: 0.0% \u22650: Y"
+  },
+  "aux_var_rationale": "mean |r| with other eligible vars: 0.888; non-negative: True",
+  "excluded_vars": {},
+  "selection_confidence": "auto",
+  "flags": [
+    "MAR mechanism: power-law P(missing) \u221d aux^1.5 (PI instructions). CONTEXT.md sigmoid formula is incorrect \u2014 see plan Gap 1."
+  ],
+  "human_confirmed": true,
+  "correlation_matrix": {
+    "log_pop_black_aa": {
+      "log_pop_black_aa": 1.0,
+      "log_pop_total": 0.8259,
+      "log_total_bachelor_deg": 0.7543,
+      "log_pop_total_poverty": 0.7646,
+      "log_total_social_cap": 0.8184
+    },
+    "log_pop_total": {
+      "log_pop_black_aa": 0.8259,
+      "log_pop_total": 1.0,
+      "log_total_bachelor_deg": 0.9317,
+      "log_pop_total_poverty": 0.8915,
+      "log_total_social_cap": 0.904
+    },
+    "log_total_bachelor_deg": {
+      "log_pop_black_aa": 0.7543,
+      "log_pop_total": 0.9317,
+      "log_total_bachelor_deg": 1.0,
+      "log_pop_total_poverty": 0.8034,
+      "log_total_social_cap": 0.8637
+    },
+    "log_pop_total_poverty": {
+      "log_pop_black_aa": 0.7646,
+      "log_pop_total": 0.8915,
+      "log_total_bachelor_deg": 0.8034,
+      "log_pop_total_poverty": 1.0,
+      "log_total_social_cap": 0.836
+    },
+    "log_total_social_cap": {
+      "log_pop_black_aa": 0.8184,
+      "log_pop_total": 0.904,
+      "log_total_bachelor_deg": 0.8637,
+      "log_pop_total_poverty": 0.836,
+      "log_total_social_cap": 1.0
+    }
+  }
+}
