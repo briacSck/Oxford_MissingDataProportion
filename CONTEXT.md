@@ -53,9 +53,7 @@ auxiliary variables, not on the missing values themselves.
 **Parameter**: `MAR_STRENGTH = 1.5` is the **exponent** in the power-law formula
 (not a sigmoid strength coefficient).
 
-⚠ Note: An earlier version of this file incorrectly stated a sigmoid/z-score formula
-(`P(missing) = sigmoid(MAR_STRENGTH × z_score(aux_var))`).
-The authoritative source is the PI instructions (power-law). This file has been corrected.
+MAR mechanism: For each key variable, each observation's probability of being set to missing is proportional to aux_var ^ 1.5 (power law with exponent MAR_STRENGTH = 1.5). Probabilities are rescaled so the total missing fraction equals the target proportion exactly (binary search scalar, tolerance ±0.001). Random seed 2026 is set before every draw for reproducibility.
 
 ---
 

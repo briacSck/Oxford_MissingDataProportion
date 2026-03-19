@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import math
 import os
 import re
@@ -38,6 +39,8 @@ except ImportError:
 
 from pipeline.config import MIN_KEY_VARS, MAX_KEY_VARS
 
+
+logger = logging.getLogger(__name__)
 
 # ── Custom exception ──────────────────────────────────────────────────────────
 
@@ -537,10 +540,15 @@ def _human_gate(
         lines.append("---")
         lines.append("[C]onfirm  [E]dit  [A]bort")
 
-        _print_box(lines)
+        if not auto_confirm:
+            _print_box(lines)
+        else:
+            logger.debug("[%s] variable_selector auto-confirming: key_vars=%s aux_var=%r",
+                         paper_id,
+                         selection.get("key_vars"),
+                         selection.get("aux_var"))
 
         if auto_confirm:
-            print("  (auto_confirm=True — confirming selection)")
             response = "c"
         else:
             response = input("Choice: ").strip().lower()

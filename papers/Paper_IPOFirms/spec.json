@@ -3,7 +3,7 @@
   "paper_dir": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\papers\\Paper_IPOFirms",
   "title": "Paper_IPOFirms",
   "source_do_file": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\RA Missing data task\\The Effect of Significant IPO Firms on Industry\\code_tables.do",
-  "source_data_file": null,
+  "source_data_file": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\RA Missing data task\\The Effect of Significant IPO Firms on Industry\\sample_full.xlsx",
   "source_r_file": null,
   "replication_code_type": "stata",
   "estimator": "OLS",

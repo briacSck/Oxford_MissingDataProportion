@@ -72,7 +72,8 @@ def _human_gate(gate_name: str, summary: str) -> bool:
 
 # ── Single-paper pipeline ─────────────────────────────────────────────────────
 
-def run_paper(paper_dir: str, use_llm_gates: bool = False) -> None:
+def run_paper(paper_dir: str, use_llm_gates: bool = False,
+              force_proceed: bool = False) -> None:
     """Run the full pipeline for a single paper directory.
 
     Parameters
@@ -80,6 +81,11 @@ def run_paper(paper_dir: str, use_llm_gates: bool = False) -> None:
     paper_dir:
         Absolute path to a paper folder, e.g. ``papers/Paper_Meyer2024/``.
         Must contain ``paper_info.xlsx`` with the required fields.
+    use_llm_gates:
+        If True, use LLM-based gate judges instead of interactive prompts.
+    force_proceed:
+        If True, bypass the parse_confidence / manual_review_required check.
+        Use after manually verifying the spec is correct.
 
     Raises
     ------
@@ -103,15 +109,19 @@ def run_paper(paper_dir: str, use_llm_gates: bool = False) -> None:
         else:
             from pipeline.parser_agent import parse_paper
             papers_root = Path(paper_dir).parent
-            spec = parse_paper(paper_name, str(papers_root))
+            spec = parse_paper(paper_name, papers_root)
 
         logger.info("[%s] Parser complete: estimator=%s", paper_name, spec.get("estimator"))
         if spec.get("manual_review_required") or spec.get("parse_confidence") != "high":
-            raise RuntimeError(
-                f"[{paper_name}] Parser confidence={spec.get('parse_confidence')!r}; "
-                f"manual_review_required={spec.get('manual_review_required')}. "
-                f"Flags: {spec.get('flags', [])}. "
-                "Edit paper_info.xlsx and re-run before proceeding."
+            if not force_proceed:
+                raise RuntimeError(
+                    f"[{paper_name}] parse_confidence={spec.get('parse_confidence')!r}; "
+                    f"manual_review_required={spec.get('manual_review_required')}. "
+                    "Pass force_proceed=True to override after manual review."
+                )
+            logger.warning(
+                "[%s] force_proceed=True — bypassing confidence check (parse_confidence=%s).",
+                paper_name, spec.get("parse_confidence"),
             )
 
         # ── Step 2: Prepare baseline dataset ─────────────────────────────────
@@ -173,7 +183,8 @@ def run_paper(paper_dir: str, use_llm_gates: bool = False) -> None:
         from pipeline.variable_selector import select_variables
         papers_root = Path(paper_dir).parent
         selection = select_variables(
-            paper_name, str(papers_root), spec=spec, data=baseline_df
+            paper_name, str(papers_root), spec=spec, data=baseline_df,
+            auto_confirm=use_llm_gates,   # skip interactive prompt when in LLM-gate mode
         )
         gate2_summary = (
             f"Paper: {paper_name}\n"
@@ -242,7 +253,8 @@ def run_paper(paper_dir: str, use_llm_gates: bool = False) -> None:
 # ── Multi-paper runner ────────────────────────────────────────────────────────
 
 def run_all(papers_dir: str, parallel: bool = False, skip_gates: bool = False,
-            use_llm_gates: bool = False, llm_halt_on_low_confidence: bool = True) -> None:
+            use_llm_gates: bool = False, llm_halt_on_low_confidence: bool = True,
+            force_proceed: bool = False) -> None:
     """Run the pipeline for all paper folders in papers_dir.
 
     Parameters
@@ -276,7 +288,7 @@ def run_all(papers_dir: str, parallel: bool = False, skip_gates: bool = False,
     if parallel:
         import concurrent.futures
         with concurrent.futures.ThreadPoolExecutor() as ex:
-            futures = {ex.submit(run_paper, str(p), use_llm_gates): p.name for p in papers}
+            futures = {ex.submit(run_paper, str(p), use_llm_gates, force_proceed): p.name for p in papers}
             for f in concurrent.futures.as_completed(futures):
                 name = futures[f]
                 try:
@@ -293,7 +305,7 @@ def run_all(papers_dir: str, parallel: bool = False, skip_gates: bool = False,
     else:
         for p in papers:
             try:
-                run_paper(str(p), use_llm_gates)
+                run_paper(str(p), use_llm_gates, force_proceed)
                 results[p.name] = "OK"
             except SpecResolverLowConfidence as e:
                 if llm_halt_on_low_confidence:

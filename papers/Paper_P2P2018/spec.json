@@ -3,7 +3,7 @@
   "paper_dir": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\papers\\Paper_P2P2018",
   "title": "Paper_P2P2018",
   "source_do_file": null,
-  "source_data_file": null,
+  "source_data_file": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\RA Missing data task\\P2P2018\\P2P_dataset.dta",
   "source_r_file": null,
   "replication_code_type": "none",
   "estimator": "",

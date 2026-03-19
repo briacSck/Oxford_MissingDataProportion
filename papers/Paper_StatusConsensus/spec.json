@@ -3,7 +3,7 @@
   "paper_dir": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\papers\\Paper_StatusConsensus",
   "title": "Paper_StatusConsensus",
   "source_do_file": null,
-  "source_data_file": null,
+  "source_data_file": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\RA Missing data task\\0017\\movie_data.csv",
   "source_r_file": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\RA Missing data task\\0017\\movies.R",
   "replication_code_type": "r",
   "estimator": "OLS",

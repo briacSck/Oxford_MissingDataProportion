@@ -3,7 +3,7 @@
   "paper_dir": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\papers\\Paper_AntiDiscrimination",
   "title": "Paper_AntiDiscrimination",
   "source_do_file": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\RA Missing data task\\replication_pakacge\\Accepted_paper_code_to_ms.do",
-  "source_data_file": null,
+  "source_data_file": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\RA Missing data task\\replication_pakacge\\ad_dataset_ms1.dta",
   "source_r_file": null,
   "replication_code_type": "stata",
   "estimator": "FE",

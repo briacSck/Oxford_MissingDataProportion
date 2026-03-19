@@ -3,7 +3,7 @@
   "paper_dir": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\papers\\Paper_Hu2025",
   "title": "Paper_Hu2025",
   "source_do_file": null,
-  "source_data_file": null,
+  "source_data_file": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\RA Missing data task\\hu-et-al-2025-reshaping-corporate-boards-through-mandatory-gender-diversity-disclosures-evidence-from-canada\\dirfin_main.dta",
   "source_r_file": null,
   "replication_code_type": "none",
   "estimator": "",

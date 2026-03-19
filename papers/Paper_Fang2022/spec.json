@@ -3,7 +3,7 @@
   "paper_dir": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\papers\\Paper_Fang2022",
   "title": "Paper_Fang2022",
   "source_do_file": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\RA Missing data task\\fang-et-al-2022-anticorruption-government-subsidies-and-innovation-evidence-from-china\\replicationcode.do",
-  "source_data_file": null,
+  "source_data_file": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\RA Missing data task\\fang-et-al-2022-anticorruption-government-subsidies-and-innovation-evidence-from-china\\main_dataset.csv",
   "source_r_file": null,
   "replication_code_type": "stata",
   "estimator": "FE",

@@ -3,7 +3,7 @@
   "paper_dir": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\papers\\Paper_Meyer2024",
   "title": "Paper_Meyer2024",
   "source_do_file": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\RA Missing data task\\SMJ 2024\\SMJ_Final_Do.do",
-  "source_data_file": null,
+  "source_data_file": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\RA Missing data task\\SMJ 2024\\SMJ_Final.dta",
   "source_r_file": null,
   "replication_code_type": "stata",
   "estimator": "FE",
