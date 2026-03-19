@@ -44,12 +44,18 @@ Orchestration is handled by `pipeline/orchestrator.py`.
 auxiliary variables, not on the missing values themselves.
 
 **Implementation**:
-1. Select an auxiliary variable correlated with the key variable(s).
-2. Compute a logistic missingness probability: `P(missing) = sigmoid(MAR_STRENGTH * z_score(aux_var))`.
-3. Draw Bernoulli indicators and set values to NaN accordingly.
-4. Repeat for each of the 7 target proportions by adjusting the intercept via binary search.
+1. Select an auxiliary variable correlated with the key variable(s), preferably non-negative.
+2. Compute missingness probability: `P(missing_i) ∝ aux_i ^ 1.5`, then rescale via a
+   multiplicative constant so that the realised proportion equals the target.
+3. Draw Bernoulli indicators; set values to NaN accordingly.
+4. Repeat for each of the 7 target proportions.
 
-**Parameter**: `MAR_STRENGTH = 1.5` (controls how strongly the auxiliary variable predicts missingness).
+**Parameter**: `MAR_STRENGTH = 1.5` is the **exponent** in the power-law formula
+(not a sigmoid strength coefficient).
+
+⚠ Note: An earlier version of this file incorrectly stated a sigmoid/z-score formula
+(`P(missing) = sigmoid(MAR_STRENGTH × z_score(aux_var))`).
+The authoritative source is the PI instructions (power-law). This file has been corrected.
 
 ---
 

@@ -113,15 +113,22 @@ def run_paper(paper_dir: str) -> None:
             raise RuntimeError(f"[{paper_name}] Pipeline halted at Gate 1.")
 
         # ── Step 4: Select variables + HUMAN GATE 2 ──────────────────────────
+        from pathlib import Path as _Path
         from pipeline.variable_selector import select_variables
-        selection = select_variables(baseline_df, spec)
+        papers_root = _Path(paper_dir).parent
+        # variable_selector fires its own interactive Gate 2 internally;
+        # the orchestrator gate below is an additional confirmation checkpoint.
+        selection = select_variables(
+            paper_name, str(papers_root), spec=spec, data=baseline_df
+        )
         gate2_summary = (
             f"Paper: {paper_name}\n"
-            f"Key vars:  {selection['key_vars']}\n"
-            f"Aux var:   {selection['aux_var']}\n"
-            f"Rationale: {selection['rationale']}\n"
+            f"Key vars:  {selection.get('key_vars')}\n"
+            f"Aux var:   {selection.get('aux_var')!r}\n"
+            f"Confidence: {selection.get('selection_confidence')}\n"
+            f"Flags:     {selection.get('flags', [])}\n"
         )
-        if not _human_gate("Variable Selection", gate2_summary):
+        if not _human_gate("Variable Selection — final confirm", gate2_summary):
             raise RuntimeError(f"[{paper_name}] Pipeline halted at Gate 2.")
 
         # ── Step 5: Generate MAR datasets ────────────────────────────────────
