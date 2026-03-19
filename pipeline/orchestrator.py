@@ -84,6 +84,13 @@ def run_paper(paper_dir: str) -> None:
         pdf_path = None  # TODO: load from paper_info.xlsx (optional)
         spec = parse_do_file(do_path, pdf_path)
         logger.info("[%s] Parser complete: estimator=%s", paper_name, spec.get("estimator"))
+        if spec.get('manual_review_required') or spec.get('parse_confidence') != 'high':
+            raise RuntimeError(
+                f"[{paper_name}] Parser confidence={spec.get('parse_confidence')!r}; "
+                f"manual_review_required={spec.get('manual_review_required')}. "
+                f"Flags: {spec.get('flags', [])}. "
+                "Edit paper_info.xlsx and re-run before proceeding."
+            )
 
         # ── Step 2: Prepare baseline dataset ─────────────────────────────────
         from pipeline.data_prep_agent import prepare_baseline

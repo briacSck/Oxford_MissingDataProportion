@@ -181,3 +181,24 @@ def test_all_keys_present(tmp_path):
     }
     missing = expected_keys - set(spec.keys())
     assert not missing, f"Missing keys in PaperSpec: {missing}"
+
+
+# ---------------------------------------------------------------------------
+# Test 9: /// continuation lines + local macro expansion
+# ---------------------------------------------------------------------------
+
+def test_parse_do_continuation_lines(tmp_path):
+    """/// continuation + local macro expansion work together."""
+    do_content = (
+        'local controls "x2 x3 x4"\n'
+        'reghdfe y x1 ///\n'
+        '    `controls\', ///\n'
+        '    absorb(firm year) cluster(firm)\n'
+    )
+    do = _write_do(tmp_path, do_content)
+    result = _parse_do_file(do)
+    assert result['dependent_var'] == 'y'
+    assert result['key_independent_vars'] == ['x1']
+    assert set(result['control_vars']) == {'x2', 'x3', 'x4'}
+    assert set(result['fixed_effects']) == {'firm', 'year'}
+    assert result['cluster_var'] == 'firm'

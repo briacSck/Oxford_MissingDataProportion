@@ -403,11 +403,14 @@ def _parse_reg_command(cmd: str) -> dict:
             fe_token = fe_token.strip()
             if not fe_token:
                 continue
-            # Handle interaction FEs like i.sic_2#i.fyear
+            # Handle interaction FEs like i.sic_2#i.fyear or c.slope#i.fe
             if '#' in fe_token:
                 parts = fe_token.split('#')
                 for p in parts:
-                    v = _strip_stata_prefix(p.strip())
+                    p = p.strip()
+                    if p.lower().startswith('c.'):
+                        continue  # continuous slope — not a fixed effect
+                    v = _strip_stata_prefix(p)
                     if v and v not in result['fixed_effects']:
                         result['fixed_effects'].append(v)
             else:
@@ -444,9 +447,14 @@ def _find_option_comma(varlist_str: str) -> int:
 # "Most complete" regression selector
 # ---------------------------------------------------------------------------
 
+_DUMMY_PAT = re.compile(r'^_I|.*\d{3,}$')
+
 def _count_unique_vars(parsed: dict) -> int:
-    """Count unique non-trivial independent variables."""
-    return len(set(parsed.get('indepvars', [])))
+    """Count unique substantive independent variables, excluding loop-generated dummies."""
+    return sum(
+        1 for v in set(parsed.get('indepvars', []))
+        if not _DUMMY_PAT.match(v)
+    )
 
 
 def _find_main_regression(do_text: str) -> Optional[dict]:
