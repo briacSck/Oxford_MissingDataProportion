@@ -58,3 +58,4 @@ outputs/
 *.local.*
 *.secret.*
 .env.*
+!.env.example

@@ -33,6 +33,13 @@ from pathlib import Path
 
 import pandas as pd
 
+# Imported here so run_all can catch it without importing llm_agents at module level
+try:
+    from pipeline.llm_agents.spec_resolver import SpecResolverLowConfidence
+except Exception:  # pragma: no cover — llm_agents may not be installed yet
+    class SpecResolverLowConfidence(Exception):  # type: ignore[no-redef]
+        pass
+
 logger = logging.getLogger(__name__)
 
 
@@ -65,7 +72,7 @@ def _human_gate(gate_name: str, summary: str) -> bool:
 
 # ── Single-paper pipeline ─────────────────────────────────────────────────────
 
-def run_paper(paper_dir: str) -> None:
+def run_paper(paper_dir: str, use_llm_gates: bool = False) -> None:
     """Run the full pipeline for a single paper directory.
 
     Parameters
@@ -123,8 +130,24 @@ def run_paper(paper_dir: str) -> None:
 
         logger.info("[%s] Data prep complete: N=%d", paper_name, len(baseline_df))
 
-        # ── Step 3: Verify baseline + HUMAN GATE 1 ───────────────────────────
+        # ── Step 3: Verify baseline + GATE 1 ─────────────────────────────────
         from pipeline.baseline_verifier import verify_baseline
+
+        # Load published values when using LLM gates
+        published_coef_val: float | None = None
+        published_sig_val: str | None = None
+        if use_llm_gates:
+            try:
+                info_df = pd.read_excel(str(Path(paper_dir) / "paper_info.xlsx"))
+                if "published_coef_main" in info_df.columns:
+                    v = info_df["published_coef_main"].iloc[0]
+                    published_coef_val = float(v) if pd.notna(v) else None
+                if "published_significance" in info_df.columns:
+                    v = info_df["published_significance"].iloc[0]
+                    published_sig_val = str(v) if pd.notna(v) else None
+            except Exception as exc:
+                logger.warning("[%s] paper_info.xlsx load failed: %s", paper_name, exc)
+
         published_coef: dict = {}
         verification = verify_baseline(baseline_df, spec, published_coef)
         gate1_summary = (
@@ -132,10 +155,21 @@ def run_paper(paper_dir: str) -> None:
             f"Baseline match: {verification['match']}\n"
             f"Discrepancies: {verification.get('discrepancies', [])}\n"
         )
-        if not _human_gate("Baseline Verification", gate1_summary):
+        if use_llm_gates:
+            from pipeline.llm_agents.llm_orchestrator import llm_gate1
+            gate1_ok = llm_gate1(
+                paper_name, paper_dir,
+                published_coef_val, published_sig_val,
+                verification.get("coef_estimate", 0.0),
+                verification.get("pvalue_estimate", 1.0),
+                verification.get("n_obs") or 0,
+            )
+        else:
+            gate1_ok = _human_gate("Baseline Verification", gate1_summary)
+        if not gate1_ok:
             raise PipelineHaltedByUser(gate=1)
 
-        # ── Step 4: Select variables + HUMAN GATE 2 ──────────────────────────
+        # ── Step 4: Select variables + GATE 2 ────────────────────────────────
         from pipeline.variable_selector import select_variables
         papers_root = Path(paper_dir).parent
         selection = select_variables(
@@ -148,7 +182,16 @@ def run_paper(paper_dir: str) -> None:
             f"Confidence: {selection.get('selection_confidence')}\n"
             f"Flags:     {selection.get('flags', [])}\n"
         )
-        if not _human_gate("Variable Selection — final confirm", gate2_summary):
+        if use_llm_gates:
+            from pipeline.llm_agents.llm_orchestrator import llm_gate2
+            gate2_ok = llm_gate2(
+                paper_name, spec,
+                selection["key_vars"], selection["aux_var"],
+                baseline_df, paper_dir,
+            )
+        else:
+            gate2_ok = _human_gate("Variable Selection — final confirm", gate2_summary)
+        if not gate2_ok:
             raise PipelineHaltedByUser(gate=2)
 
         # ── Step 5: Generate MAR datasets ────────────────────────────────────
@@ -172,11 +215,16 @@ def run_paper(paper_dir: str) -> None:
         results_xlsx = run_all_regressions(paper_dir, spec)
         logger.info("[%s] Regressions complete: %s", paper_name, results_xlsx)
 
-        # ── Step 8: QC + HUMAN GATE 3 ────────────────────────────────────────
+        # ── Step 8: QC + GATE 3 ──────────────────────────────────────────────
         from pipeline.qc_agent import run_qc
         qc_passed = run_qc(paper_dir)
         qc_report_text = (Path(paper_dir) / "qc_report.txt").read_text(encoding="utf-8")
-        if not _human_gate("QC Review", qc_report_text):
+        if use_llm_gates:
+            from pipeline.llm_agents.llm_orchestrator import llm_gate3
+            gate3_ok = llm_gate3(paper_name, paper_dir)
+        else:
+            gate3_ok = _human_gate("QC Review", qc_report_text)
+        if not gate3_ok:
             raise PipelineHaltedByUser(gate=3)
 
         logger.info("[%s] Pipeline complete.", paper_name)
@@ -193,7 +241,8 @@ def run_paper(paper_dir: str) -> None:
 
 # ── Multi-paper runner ────────────────────────────────────────────────────────
 
-def run_all(papers_dir: str, parallel: bool = False, skip_gates: bool = False) -> None:
+def run_all(papers_dir: str, parallel: bool = False, skip_gates: bool = False,
+            use_llm_gates: bool = False, llm_halt_on_low_confidence: bool = True) -> None:
     """Run the pipeline for all paper folders in papers_dir.
 
     Parameters
@@ -227,19 +276,31 @@ def run_all(papers_dir: str, parallel: bool = False, skip_gates: bool = False) -
     if parallel:
         import concurrent.futures
         with concurrent.futures.ThreadPoolExecutor() as ex:
-            futures = {ex.submit(run_paper, str(p)): p.name for p in papers}
+            futures = {ex.submit(run_paper, str(p), use_llm_gates): p.name for p in papers}
             for f in concurrent.futures.as_completed(futures):
                 name = futures[f]
                 try:
                     f.result()
                     results[name] = "OK"
+                except SpecResolverLowConfidence as e:
+                    if llm_halt_on_low_confidence:
+                        results[name] = f"FAILED: {e}"
+                    else:
+                        logger.warning("[%s] Low-confidence spec — skipped: %s", name, e.flags)
+                        results[name] = "SKIPPED (low confidence)"
                 except Exception as e:
                     results[name] = f"FAILED: {e}"
     else:
         for p in papers:
             try:
-                run_paper(str(p))
+                run_paper(str(p), use_llm_gates)
                 results[p.name] = "OK"
+            except SpecResolverLowConfidence as e:
+                if llm_halt_on_low_confidence:
+                    results[p.name] = f"FAILED: {e}"
+                else:
+                    logger.warning("[%s] Low-confidence spec — skipped: %s", p.name, e.flags)
+                    results[p.name] = "SKIPPED (low confidence)"
             except Exception as e:
                 logger.error("[%s] %s", p.name, e)
                 results[p.name] = f"FAILED: {e}"
