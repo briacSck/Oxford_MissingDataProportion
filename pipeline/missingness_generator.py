@@ -1,76 +1,152 @@
 """
 pipeline/missingness_generator.py
 ----------------------------------
-Missingness Generator: injects MAR missingness into the key variables at each
-of the 7 target proportions and saves one dataset per proportion.
-
-MAR mechanism
-~~~~~~~~~~~~~
-For each target proportion p:
-  1. Compute z = (aux_var - mean) / std  (standardise the auxiliary variable).
-  2. Define logistic probability: P(missing | z) = sigmoid(intercept + MAR_STRENGTH * z).
-  3. Find ``intercept`` by binary search so that mean(P(missing)) ≈ p.
-  4. Draw Bernoulli(P(missing_i)) indicators for each observation.
-  5. Set key_var to NaN where indicator == 1.
-  6. Save dataset to output_dir/<proportion_label>.parquet.
+Missingness Generator: injects power-law MAR missingness into each key
+variable at each of the 7 target proportions and saves one CSV per
+(variable × proportion) combination.
 """
 
 from __future__ import annotations
 
+import logging
+from pathlib import Path
+
+import numpy as np
 import pandas as pd
 
+from pipeline.config import (
+    MAR_STRENGTH,
+    MISSING_PROPORTIONS,
+    PROPORTION_LABELS,
+    RANDOM_SEED,
+)
 
-def generate_mar_datasets(
-    baseline_df: pd.DataFrame,
+logger = logging.getLogger(__name__)
+
+
+# ── I/O helpers ───────────────────────────────────────────────────────────────
+
+def _load_baseline(path: str) -> pd.DataFrame:
+    """Load a baseline file — handles .parquet, .csv, .xlsx."""
+    p = str(path)
+    if p.endswith(".parquet"):
+        return pd.read_parquet(p)
+    elif p.endswith(".csv"):
+        return pd.read_csv(p)
+    elif p.endswith(".xlsx") or p.endswith(".xls"):
+        return pd.read_excel(p)
+    else:
+        raise ValueError(f"Unsupported file format: {p}")
+
+
+# ── Scalar binary search ──────────────────────────────────────────────────────
+
+def _find_scalar(probs: np.ndarray, target: float,
+                 tol: float = 0.001, max_steps: int = 50) -> float:
+    """Binary search for scalar s such that mean(clip(s*probs, 0, 1)) ≈ target."""
+    lo, hi = 0.0, float(len(probs))
+    for _ in range(max_steps):
+        mid = (lo + hi) / 2.0
+        mean_p = np.clip(mid * probs, 0.0, 1.0).mean()
+        if abs(mean_p - target) < tol:
+            return mid
+        if mean_p < target:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2.0
+
+
+# ── Public entry ──────────────────────────────────────────────────────────────
+
+def generate_missingness(
+    baseline_path: str,
     key_vars: list[str],
     aux_var: str,
-    output_dir: str,
-) -> dict[str, str]:
-    """Generate one MAR-corrupted dataset per target proportion.
+    paper_dir: str,
+) -> dict[str, dict[str, str]]:
+    """Generate power-law MAR datasets for each (key_var, proportion) pair.
 
     Parameters
     ----------
-    baseline_df:
-        Clean baseline DataFrame (no missing values in key_vars).
+    baseline_path:
+        Path to the baseline dataset (.parquet / .csv / .xlsx).
     key_vars:
-        List of variable names to receive MAR missingness (3–5 variables).
+        Variables that will receive injected missingness.
     aux_var:
-        Name of the auxiliary variable used as the MAR predictor.
-    output_dir:
-        Directory where the corrupted datasets will be saved
-        (e.g. ``papers/Paper_XXX/missing/``).
+        Auxiliary variable driving the MAR mechanism (must not be in key_vars).
+    paper_dir:
+        Root directory of the paper; output goes to ``{paper_dir}/missing/``.
 
     Returns
     -------
-    dict[str, str]
-        Mapping of proportion label → absolute path of saved parquet file,
-        e.g. ``{"01pct": "/…/missing/01pct.parquet", …}``.
+    dict[str, dict[str, str]]
+        ``{varname: {label: output_path}}`` for all generated files.
 
     Raises
     ------
-    NotImplementedError
-        Until the agent is fully implemented.
     ValueError
-        If aux_var is in key_vars (aux_var must remain fully observed).
+        If aux_var is not in data, aux_var is in key_vars, or any key_var is
+        not in data.
     """
-    # TODO: Import config values: MISSING_PROPORTIONS, PROPORTION_LABELS,
-    #       MAR_STRENGTH, RANDOM_SEED.
-    # TODO: Validate inputs:
-    #         - All key_vars present in baseline_df.columns.
-    #         - aux_var present and NOT in key_vars.
-    #         - key_vars are free of NaNs in baseline_df (baseline must be clean).
-    # TODO: Standardise aux_var: z = (aux_var - mean) / std.
-    # TODO: For each (proportion, label) in zip(MISSING_PROPORTIONS, PROPORTION_LABELS):
-    #   a. Binary-search for intercept b0 such that
-    #      mean(sigmoid(b0 + MAR_STRENGTH * z)) ≈ proportion (tolerance 1e-4).
-    #      Search bounds: b0 ∈ [-20, 20]; use ~50 bisection steps.
-    #   b. Compute P_missing_i = sigmoid(b0 + MAR_STRENGTH * z_i) for each row.
-    #   c. Set numpy random seed to RANDOM_SEED + index for reproducibility.
-    #   d. Draw missing_indicator ~ Bernoulli(P_missing_i).
-    #   e. Copy baseline_df; for each var in key_vars, set rows where
-    #      missing_indicator == 1 to NaN.
-    #   f. Assert actual missing rate ≈ proportion (warn if |actual - target| > 0.01).
-    #   g. Save to output_dir/<label>.parquet.
-    #   h. Log: paper, proportion label, target rate, actual rate, N missing.
-    # TODO: Return mapping dict.
-    raise NotImplementedError("generate_mar_datasets is not yet implemented.")
+    df = _load_baseline(baseline_path)
+
+    # ── Validation ────────────────────────────────────────────────────────────
+    if aux_var not in df.columns:
+        raise ValueError(f"aux_var '{aux_var}' not found in data columns.")
+    if aux_var in key_vars:
+        raise ValueError(f"aux_var '{aux_var}' must not be in key_vars.")
+    missing_kvs = [kv for kv in key_vars if kv not in df.columns]
+    if missing_kvs:
+        raise ValueError(f"key_vars not found in data: {missing_kvs}")
+
+    # ── Setup ─────────────────────────────────────────────────────────────────
+    out_dir = Path(paper_dir) / "missing"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    n = len(df)
+    aux_vals = df[aux_var].values.astype(float)
+
+    # Shift so all values are strictly positive
+    if np.any(aux_vals <= 0):
+        aux_vals = aux_vals + abs(aux_vals.min()) + 1.0
+
+    # Power-law weights and probabilities
+    weights = aux_vals ** MAR_STRENGTH
+    probs = weights / weights.sum()
+
+    results: dict[str, dict[str, str]] = {}
+
+    for key_var in key_vars:
+        results[key_var] = {}
+        for proportion, label in zip(MISSING_PROPORTIONS, PROPORTION_LABELS):
+            # Binary-search for scaling scalar
+            s = _find_scalar(probs, proportion)
+            scaled = np.clip(s * probs, 0.0, 1.0)
+
+            # Reproducible draw — seed before EVERY draw
+            np.random.seed(RANDOM_SEED)
+            missing_mask = np.random.rand(n) < scaled
+
+            actual_rate = missing_mask.mean()
+            if abs(actual_rate - proportion) >= 0.005:
+                logger.warning(
+                    "[%s] %s MAR_%s: actual_rate=%.4f, target=%.4f — diff=%.4f",
+                    paper_dir, key_var, label, actual_rate, proportion,
+                    abs(actual_rate - proportion),
+                )
+
+            df_out = df.copy()
+            df_out.loc[missing_mask, key_var] = np.nan
+
+            out_path = out_dir / f"{key_var}_MAR_{label}.csv"
+            df_out.to_csv(str(out_path), index=False)
+
+            results[key_var][label] = str(out_path)
+            logger.info(
+                "[%s] %s_MAR_%s: target=%.2f actual=%.4f N_missing=%d",
+                paper_dir, key_var, label, proportion, actual_rate,
+                missing_mask.sum(),
+            )
+
+    return results
