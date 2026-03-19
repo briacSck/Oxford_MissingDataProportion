@@ -1,0 +1,60 @@
+.claude
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+*.code-workspace
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+.env
+.venv
+venv/
+env/
+pip-wheel-metadata/
+.python-version
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Build / packaging
+build/
+dist/
+htmlcov/
+.coverage
+.coverage.*
+.cache/
+.mypy_cache/
+.pytest_cache/
+.tox/
+pytest-debug.log
+
+# Logs
+logs/
+*.log
+
+# Data + outputs (regeneration is scripted)
+outputs/
+**/missing/
+**/listwise/
+**/baseline_data.csv
+
+# Excel and other run artifacts (keep only templates tracked)
+**/paper_info.xlsx
+**/regression_results.xlsx
+!_templates/paper_info_template.xlsx
+!_templates/regression_results_template.xlsx
+
+# Local configs
+*.local.*
+*.secret.*
+.env.*

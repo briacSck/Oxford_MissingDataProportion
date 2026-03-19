@@ -1,0 +1,45 @@
+{
+  "paper_id": "Paper_AntiDiscrimination",
+  "paper_dir": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\papers\\Paper_AntiDiscrimination",
+  "title": "Paper_AntiDiscrimination",
+  "source_do_file": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\RA Missing data task\\replication_pakacge\\Accepted_paper_code_to_ms.do",
+  "source_data_file": null,
+  "source_r_file": null,
+  "replication_code_type": "stata",
+  "estimator": "FE",
+  "dependent_var": "lev_dlc_dltt_at",
+  "key_independent_vars": [
+    "ad_law_enforce"
+  ],
+  "control_vars": [
+    "ad_law_notenforce",
+    "ln_at_adj",
+    "ni_at",
+    "ppent_at",
+    "div_payer",
+    "state_inc_growth",
+    "state_id",
+    "fyear"
+  ],
+  "fixed_effects": [
+    "cm_id",
+    "fyear"
+  ],
+  "cluster_var": "cm_id",
+  "sample_restrictions": [
+    "census_region_south!=."
+  ],
+  "interaction_terms": [
+    "i.state_id#c.fyear"
+  ],
+  "instrumental_vars": [],
+  "published_coef": null,
+  "published_se": null,
+  "published_significance": null,
+  "parse_confidence": "high",
+  "flags": [
+    "key_independent_vars heuristic \u2014 verify manually"
+  ],
+  "manual_review_required": true,
+  "raw_regression_command": "reghdfe lev_dlc_dltt_at ad_law_enforce  ad_law_notenforce   ln_at_adj  ni_at  ppent_at  div_payer  state_inc_growth  i.state_id#c.fyear  if census_region_south!=. ,  a(cm_id fyear) vce(cluster cm_id)"
+}

@@ -1,0 +1,38 @@
+{
+  "paper_id": "Paper_StatusConsensus",
+  "paper_dir": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\papers\\Paper_StatusConsensus",
+  "title": "Paper_StatusConsensus",
+  "source_do_file": null,
+  "source_data_file": null,
+  "source_r_file": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\RA Missing data task\\0017\\movies.R",
+  "replication_code_type": "r",
+  "estimator": "OLS",
+  "dependent_var": "skew_pooled",
+  "key_independent_vars": [
+    "FLead"
+  ],
+  "control_vars": [
+    "mean_pooled",
+    "sd_pooled",
+    "kim_violence_gore",
+    "kim_sex_nudity",
+    "kim_language",
+    "major",
+    "log(bom_opening_theaters"
+  ],
+  "fixed_effects": [],
+  "cluster_var": null,
+  "sample_restrictions": [],
+  "interaction_terms": [],
+  "instrumental_vars": [],
+  "published_coef": null,
+  "published_se": null,
+  "published_significance": null,
+  "parse_confidence": "medium",
+  "flags": [
+    "R script \u2014 verify translation to Python",
+    "SUR model in R \u2014 may need systemfit/GLS equivalent in Python"
+  ],
+  "manual_review_required": true,
+  "raw_regression_command": "skew_pooled ~ FLead + mean_pooled + sd_pooled  + \n                      kim_violence_gore + kim_sex_nudity + kim_language +\n                      major +\n                      log(bom_opening_theaters"
+}

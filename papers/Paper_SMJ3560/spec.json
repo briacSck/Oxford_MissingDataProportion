@@ -1,0 +1,44 @@
+{
+  "paper_id": "Paper_SMJ3560",
+  "paper_dir": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\papers\\Paper_SMJ3560",
+  "title": "Paper_SMJ3560",
+  "source_do_file": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\RA Missing data task\\SMJ 3560\\STATA CODE 3560.do",
+  "source_data_file": null,
+  "source_r_file": null,
+  "replication_code_type": "stata",
+  "estimator": "OLS",
+  "dependent_var": "TimeEffort",
+  "key_independent_vars": [
+    "Treat"
+  ],
+  "control_vars": [
+    "Age",
+    "M1",
+    "R1",
+    "EDU3",
+    "Registered",
+    "Working",
+    "Studying",
+    "EntrepExperience",
+    "RevenueLikert",
+    "CustomersLikert"
+  ],
+  "fixed_effects": [
+    "Round"
+  ],
+  "cluster_var": null,
+  "sample_restrictions": [
+    "Post==0"
+  ],
+  "interaction_terms": [],
+  "instrumental_vars": [],
+  "published_coef": null,
+  "published_se": null,
+  "published_significance": null,
+  "parse_confidence": "high",
+  "flags": [
+    "key_independent_vars heuristic \u2014 verify manually"
+  ],
+  "manual_review_required": true,
+  "raw_regression_command": "reg TimeEffort Treat i.Round Age M1 R1 EDU3 Registered Working Studying EntrepExperience RevenueLikert CustomersLikert if Post==0, robust"
+}

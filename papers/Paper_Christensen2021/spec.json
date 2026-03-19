@@ -1,0 +1,54 @@
+{
+  "paper_id": "Paper_Christensen2021",
+  "paper_dir": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\papers\\Paper_Christensen2021",
+  "title": "Paper_Christensen2021",
+  "source_do_file": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\RA Missing data task\\christensen-et-al-2021-hedging-on-the-hill-does-political-hedging-reduce-firm-risk\\estimate.do",
+  "source_data_file": null,
+  "source_r_file": null,
+  "replication_code_type": "stata",
+  "estimator": "FE",
+  "dependent_var": "intravol",
+  "key_independent_vars": [
+    "politicalhedge"
+  ],
+  "control_vars": [
+    "treat",
+    "eventdate",
+    "politicalconnections",
+    "mktvol",
+    "beta",
+    "mve",
+    "btm",
+    "roa",
+    "loss",
+    "cash",
+    "govtsales",
+    "zscore",
+    "leverage",
+    "competition",
+    "ppe"
+  ],
+  "fixed_effects": [
+    "ff12",
+    "date"
+  ],
+  "cluster_var": "gvkey",
+  "sample_restrictions": [],
+  "interaction_terms": [
+    "c.politicalhedge#c.treat",
+    "c.politicalhedge#c.eventdate",
+    "c.treat#c.eventdate",
+    "c.politicalhedge#c.treat#c.eventdate"
+  ],
+  "instrumental_vars": [],
+  "published_coef": null,
+  "published_se": null,
+  "published_significance": null,
+  "parse_confidence": "medium",
+  "flags": [
+    "unresolved macro: $dir",
+    "key_independent_vars heuristic \u2014 verify manually"
+  ],
+  "manual_review_required": true,
+  "raw_regression_command": "reghdfe intravol politicalhedge c.politicalhedge#c.treat c.politicalhedge#c.eventdate c.treat#c.eventdate c.politicalhedge#c.treat#c.eventdate  politicalconnections mktvol beta mve btm roa loss cash govtsales zscore leverage competition ppe, absorb(ff12 date) cluster(gvkey) keepsingleton"
+}

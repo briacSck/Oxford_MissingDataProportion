@@ -1,0 +1,37 @@
+{
+  "paper_id": "Paper_Mapping2024",
+  "paper_dir": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\papers\\Paper_Mapping2024",
+  "title": "Paper_Mapping2024",
+  "source_do_file": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\RA Missing data task\\0005 - Mapping entrepreneurial inclusion across US neighborhoods_ The case of low-code e-commerce entrepreneurship\\mapping_entrepreneurial_inclusion.do",
+  "source_data_file": null,
+  "source_r_file": null,
+  "replication_code_type": "stata",
+  "estimator": "OLS",
+  "dependent_var": "log_vcbacked_nonshopify_count_1",
+  "key_independent_vars": [
+    "log_pop_black_aa"
+  ],
+  "control_vars": [
+    "log_pop_total",
+    "log_total_bachelor_deg",
+    "log_pop_total_poverty",
+    "log_total_social_cap"
+  ],
+  "fixed_effects": [
+    "state_name_fe",
+    "MSA_fe"
+  ],
+  "cluster_var": "MSA_fe",
+  "sample_restrictions": [],
+  "interaction_terms": [],
+  "instrumental_vars": [],
+  "published_coef": null,
+  "published_se": null,
+  "published_significance": null,
+  "parse_confidence": "high",
+  "flags": [
+    "key_independent_vars heuristic \u2014 verify manually"
+  ],
+  "manual_review_required": true,
+  "raw_regression_command": "qui reg log_vcbacked_nonshopify_count_1 log_pop_black_aa log_pop_total log_total_bachelor_deg log_pop_total_poverty log_total_social_cap i.state_name_fe i.MSA_fe, vce(cluster MSA_fe)"
+}

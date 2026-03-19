@@ -1,0 +1,49 @@
+{
+  "paper_id": "Paper_Fang2022",
+  "paper_dir": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\papers\\Paper_Fang2022",
+  "title": "Paper_Fang2022",
+  "source_do_file": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\RA Missing data task\\fang-et-al-2022-anticorruption-government-subsidies-and-innovation-evidence-from-china\\replicationcode.do",
+  "source_data_file": null,
+  "source_r_file": null,
+  "replication_code_type": "stata",
+  "estimator": "FE",
+  "dependent_var": "cite_us",
+  "key_independent_vars": [
+    "lsubsidy_weak"
+  ],
+  "control_vars": [
+    "lsw_postdeparture",
+    "lpostdeparture",
+    "lnasset",
+    "llnage",
+    "lleverage",
+    "lintangible",
+    "lroa",
+    "ltobinq",
+    "lsoe",
+    "lpolitical",
+    "prodummy",
+    "lsubsidy_s",
+    "year"
+  ],
+  "fixed_effects": [
+    "year",
+    "firm"
+  ],
+  "cluster_var": "firm",
+  "sample_restrictions": [],
+  "interaction_terms": [
+    "i.prodummy#c.lsubsidy_s",
+    "i.year#c.lsubsidy_s"
+  ],
+  "instrumental_vars": [],
+  "published_coef": null,
+  "published_se": null,
+  "published_significance": null,
+  "parse_confidence": "high",
+  "flags": [
+    "key_independent_vars heuristic \u2014 verify manually"
+  ],
+  "manual_review_required": true,
+  "raw_regression_command": "reghdfe cite_us lsubsidy_weak lsw_postdeparture lpostdeparture lnasset llnage lleverage lintangible lroa ltobinq lsoe lpolitical i.prodummy#c.lsubsidy_s i.year#c.lsubsidy_s,absorb(year firm) vce(cluster firm)"
+}

@@ -1,0 +1,27 @@
+{
+  "paper_id": "Paper_Hu2025",
+  "paper_dir": "C:\\Users\\briac\\Econ_Code\\Oxford_MissingDataProportion\\papers\\Paper_Hu2025",
+  "title": "Paper_Hu2025",
+  "source_do_file": null,
+  "source_data_file": null,
+  "source_r_file": null,
+  "replication_code_type": "none",
+  "estimator": "",
+  "dependent_var": "",
+  "key_independent_vars": [],
+  "control_vars": [],
+  "fixed_effects": [],
+  "cluster_var": null,
+  "sample_restrictions": [],
+  "interaction_terms": [],
+  "instrumental_vars": [],
+  "published_coef": null,
+  "published_se": null,
+  "published_significance": null,
+  "parse_confidence": "low",
+  "flags": [
+    "no replication code \u2014 spec must be entered manually in paper_info.xlsx"
+  ],
+  "manual_review_required": true,
+  "raw_regression_command": null
+}
