@@ -1,10 +1,13 @@
 """pipeline/pipeline_audit.py
 ------------------------------
-Diagnostic script: prints per-paper precondition status table.
+Batch preflight audit for all papers.
 
 Run from repo root:
-    python pipeline/pipeline_audit.py
-    python pipeline/pipeline_audit.py --papers-dir papers
+    python pipeline/pipeline_audit.py [--papers-dir papers] [--output-dir outputs]
+
+Outputs:
+    outputs/pipeline_audit.csv
+    outputs/pipeline_audit.json
 """
 
 from __future__ import annotations
@@ -13,113 +16,169 @@ import argparse
 import json
 from pathlib import Path
 
+# ── Re-exports from validators (keeps downstream imports stable) ───────────────
+try:
+    from pipeline.validators import (  # noqa: F401
+        STATUS_CLASSES,
+        RUNNER_MAP,
+        load_spec,
+        load_selection,
+        load_baseline,
+        get_expected_runner,
+        validate_paper_folder,
+        validate_spec,
+        validate_data_file,
+        validate_variable_selection_feasibility,
+        validate_fe_structure,
+        validate_fe_spec,        # alias — kept for backward compat
+        classify_failure,
+    )
+except ModuleNotFoundError:
+    from validators import (  # type: ignore[no-redef]  # noqa: F401
+        STATUS_CLASSES,
+        RUNNER_MAP,
+        load_spec,
+        load_selection,
+        load_baseline,
+        get_expected_runner,
+        validate_paper_folder,
+        validate_spec,
+        validate_data_file,
+        validate_variable_selection_feasibility,
+        validate_fe_structure,
+        validate_fe_spec,        # alias — kept for backward compat
+        classify_failure,
+    )
 
-def _fmt_size(path: Path) -> str:
-    mb = path.stat().st_size / (1024 * 1024)
-    return f"OK({mb:.1f}MB)"
 
+# ── Paper audit ───────────────────────────────────────────────────────────────
 
-def _check_paper(paper_dir: Path) -> dict:
-    result: dict = {"paper": paper_dir.name}
+def audit_paper(paper_dir: Path) -> dict:
+    """Run all checks for one paper and return the output row dict."""
+    spec      = load_spec(paper_dir)
+    selection = load_selection(paper_dir)
+    df        = load_baseline(paper_dir)
 
-    # 1. spec.json
-    spec_path = paper_dir / "spec.json"
-    if not spec_path.exists():
-        result.update({"conf": "MISSING", "manual_review": "?", "data_file": "NO SPEC"})
-        return result
+    folder  = validate_paper_folder(paper_dir)
+    spec_v  = validate_spec(spec)
+    data    = validate_data_file(spec, paper_dir)
+    varsel  = validate_variable_selection_feasibility(selection, spec, df)
+    fe      = validate_fe_structure(spec, df)
 
-    spec = json.loads(spec_path.read_text(encoding="utf-8"))
+    status_class = classify_failure(folder, spec_v, data, varsel, fe)
 
-    result["conf"] = spec.get("parse_confidence", "?")
-    result["manual_review"] = str(spec.get("manual_review_required", "?"))
-
-    # 2. source_data_file
-    src = spec.get("source_data_file")
-    if not src:
-        result["data_file"] = "None"
-    else:
-        p = Path(src)
-        if not p.exists():
-            result["data_file"] = f"MISSING({p.name})"
+    # depvar_exists — computed inline (not in any single validator)
+    depvar_exists = None
+    if df is not None and spec is not None:
+        depvar = spec.get("dependent_var", "")
+        if not depvar:
+            depvar_exists = False
+        elif depvar in df.columns:
+            depvar_exists = True
         else:
-            result["data_file"] = _fmt_size(p)
+            depvar_exists = False
 
-    # 3. spec_cols_in_data — light check (just confirm depvar + key_vars present)
-    spec_cols_ok = "?"
-    if src and Path(src).exists():
-        try:
-            p = Path(src)
-            suffix = p.suffix.lower()
-            if suffix == ".dta":
-                import pandas as pd
-                df = pd.read_stata(str(p), iterator=True)
-                col_set = set(df.varlist)
-            elif suffix == ".csv":
-                import pandas as pd
-                df5 = pd.read_csv(str(p), nrows=5)
-                col_set = set(df5.columns)
-            elif suffix in (".xlsx", ".xls"):
-                import pandas as pd
-                df5 = pd.read_excel(str(p), nrows=5)
-                col_set = set(df5.columns)
-            else:
-                col_set = set()
+    # Sentinel values matching the pre-existing row schema
+    key_vars_valid: bool | str = (
+        varsel["key_vars_ok"] if varsel["has_selection"] else "no_selection"
+    )
+    aux_var_valid: bool | str = (
+        varsel["aux_var_ok"] if varsel["has_selection"] else "no_selection"
+    )
 
-            dep = spec.get("dependent_var", "")
-            keys = spec.get("key_independent_vars") or []
-            missing_cols = [c for c in ([dep] + keys) if c and c not in col_set]
-            spec_cols_ok = "OK" if not missing_cols else f"MISSING_COLS:{missing_cols}"
-        except Exception as exc:
-            spec_cols_ok = f"ERR({exc!s:.40})"
-    result["spec_cols"] = spec_cols_ok
+    if not fe["applicable"]:
+        fe_cols_valid: bool | str | None = "not_fe"
+    else:
+        fe_cols_valid = fe["ok"]  # True / False / None
 
-    # 4–10. Artifacts
-    result["baseline"] = "OK" if (paper_dir / "baseline.parquet").exists() else "MISSING"
-    result["selection"] = "OK" if (paper_dir / "selection.json").exists() else "MISSING"
+    # Aggregate all issue strings
+    all_issues = (
+        folder["issues"]
+        + spec_v["issues"]
+        + data["issues"]
+        + varsel["issues"]
+        + fe["issues"]
+    )
 
-    missing_csvs = list(paper_dir.glob("missing/*.csv"))
-    result["missing"] = str(len(missing_csvs))
-
-    listwise_csvs = list(paper_dir.glob("listwise/*.csv"))
-    result["listwise"] = str(len(listwise_csvs))
-
-    result["results"] = "OK" if (paper_dir / "regression_results.xlsx").exists() else "MISSING"
-    result["qc"] = "OK" if (paper_dir / "qc_report.txt").exists() else "MISSING"
-
-    return result
+    # Canonical column order — unchanged schema
+    return {
+        "paper_id":         paper_dir.name,
+        "status_class":     status_class,
+        "estimator":        spec_v["estimator"] or (spec or {}).get("estimator", "?"),
+        "has_paper_info":   folder["has_paper_info"],
+        "has_spec":         folder["has_spec"],
+        "data_file_exists": data["source_data_exists"],
+        "depvar_exists":    depvar_exists,
+        "key_vars_valid":   key_vars_valid,
+        "aux_var_valid":    aux_var_valid,
+        "fe_cols_valid":    fe_cols_valid,
+        "duplicate_columns": fe["duplicate_cluster_fe"],
+        "expected_runner":  get_expected_runner(spec),
+        "notes":            "|".join(all_issues),
+    }
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Audit pipeline preconditions per paper")
-    parser.add_argument("--papers-dir", default="papers", help="Path to papers/ directory")
-    args = parser.parse_args()
+# ── Batch ─────────────────────────────────────────────────────────────────────
 
-    papers_dir = Path(args.papers_dir)
-    if not papers_dir.exists():
-        print(f"ERROR: papers dir not found: {papers_dir}")
-        return
-
+def audit_all(papers_dir: Path) -> list[dict]:
     papers = sorted(papers_dir.glob("Paper_*/"))
-    if not papers:
-        print("No Paper_* directories found.")
+    return [audit_paper(p) for p in papers]
+
+
+# ── CLI ───────────────────────────────────────────────────────────────────────
+
+def _print_table(rows: list[dict]) -> None:
+    if not rows:
+        print("No papers found.")
         return
 
-    rows = [_check_paper(p) for p in papers]
-
-    # Column widths
-    cols = ["paper", "conf", "manual_review", "data_file", "spec_cols",
-            "baseline", "selection", "missing", "listwise", "results", "qc"]
-    widths = {c: max(len(c), max(len(str(r.get(c, ""))) for r in rows)) for c in cols}
-
+    cols = [
+        "paper_id", "status_class", "estimator", "expected_runner",
+        "has_spec", "data_file_exists", "depvar_exists",
+        "key_vars_valid", "aux_var_valid", "fe_cols_valid",
+        "duplicate_columns",
+    ]
+    widths = {
+        c: max(len(c), max(len(str(r.get(c, ""))) for r in rows))
+        for c in cols
+    }
     header = "  ".join(c.ljust(widths[c]) for c in cols)
-    sep = "  ".join("-" * widths[c] for c in cols)
+    sep    = "  ".join("-" * widths[c] for c in cols)
     print(header)
     print(sep)
     for row in rows:
         line = "  ".join(str(row.get(c, "")).ljust(widths[c]) for c in cols)
         print(line)
-
     print(f"\nTotal: {len(rows)} papers")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Batch preflight audit for all papers")
+    parser.add_argument("--papers-dir", default="papers", help="Path to papers/ directory")
+    parser.add_argument("--output-dir", default="outputs", help="Path to outputs/ directory")
+    args = parser.parse_args()
+
+    papers_dir = Path(args.papers_dir)
+    output_dir = Path(args.output_dir)
+
+    if not papers_dir.exists():
+        print(f"ERROR: papers dir not found: {papers_dir}")
+        return
+
+    rows = audit_all(papers_dir)
+    _print_table(rows)
+
+    # Write CSV
+    import pandas as pd  # noqa: PLC0415
+
+    csv_path = output_dir / "pipeline_audit.csv"
+    pd.DataFrame(rows).to_csv(csv_path, index=False)
+    print(f"\nCSV written: {csv_path}")
+
+    # Write JSON
+    json_path = output_dir / "pipeline_audit.json"
+    json_path.write_text(json.dumps(rows, indent=2, default=str), encoding="utf-8")
+    print(f"JSON written: {json_path}")
 
 
 if __name__ == "__main__":

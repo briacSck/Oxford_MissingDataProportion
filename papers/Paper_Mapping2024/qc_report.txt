@@ -1,4 +1,4 @@
-QC Report — Paper_Mapping2024  [2026-03-19 23:18:56]
+QC Report — Paper_Mapping2024  [2026-03-20 09:11:36]
 RANDOM_SEED=2026 confirmed
 [PASS] Check 1: Row count — 29 rows (K=4×7+1)
 [PASS] Check 2: File count — 28 missing, 28 listwise (expected 28 each)

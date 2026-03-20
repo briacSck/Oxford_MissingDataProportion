@@ -73,9 +73,11 @@ _ID_TIME_NAMES: set[str] = {
     "id", "year", "time", "date", "fyear", "gvkey", "cusip", "permno",
     "month", "quarter", "t", "ym", "round", "qtr", "wave", "period",
     "metaid", "monthtime", "state_id", "firm_id", "company_id",
+    "province", "county", "region", "district", "municipality",
+    "state", "country", "census_region",
 }
 
-_ID_SUFFIXES  = ("_id", "_year", "_date", "_time")
+_ID_SUFFIXES  = ("_id", "_year", "_date", "_time", "_code", "_region", "_province")
 _ID_PREFIXES  = ("id_",)
 
 
@@ -171,6 +173,11 @@ def _filter_eligible_vars(
 
         # Data-based rules — skip if no data
         if df is not None:
+            # Rule 0: variable not in baseline columns (cannot validate or use)
+            if v not in df.columns:
+                excluded[v] = "not found in baseline data columns"
+                continue
+
             # Rule 7: object/string dtype
             if v in df.columns and df[v].dtype == object:
                 excluded[v] = "object/string dtype"
@@ -403,8 +410,8 @@ def _pick_aux_first(
             return aux_pool[0], "selected first available (no data for correlation check)", {}, new_flags
         return "", "no eligible aux candidates", {}, new_flags
 
-    # Filter: < 5% missing
-    candidates = [v for v in aux_pool if v in df.columns and df[v].isna().mean() < 0.05]
+    # Filter: < 20% missing (relaxed from 5% to avoid empty pool on real datasets)
+    candidates = [v for v in aux_pool if v in df.columns and df[v].isna().mean() < 0.20]
 
     # Prefer non-negative (power-law compatibility)
     non_neg = [v for v in candidates if (df[v].dropna() >= 0).all()]
@@ -446,6 +453,16 @@ def _pick_aux_first(
             majority, mean_r = _mean_r_with_others(v, 0.05)
             if majority and mean_r > best_mean_r:
                 best_aux, best_mean_r = v, mean_r
+
+    if not best_aux and search_pool:
+        best_aux = min(
+            search_pool,
+            key=lambda v: df[v].isna().mean() if v in df.columns else 1.0,
+        )
+        new_flags.append(
+            f"aux var {best_aux!r} selected by lowest missing rate "
+            "(no correlation threshold met — human review recommended)"
+        )
 
     if not best_aux:
         new_flags.append("no suitable aux var found — human must select")
@@ -747,6 +764,26 @@ def select_variables(
         selected_ranked = ranked[:MAX_KEY_VARS]
         key_vars = [v for v, _, _ in selected_ranked]
         key_var_rationale = {v: rat for v, _, rat in selected_ranked}
+
+    # ── Post-selection validation of key_vars against baseline data ────────────
+    if data is not None and key_vars:
+        invalid_kv = [
+            v for v in key_vars
+            if v not in data.columns
+            or data[v].dtype == object
+            or set(data[v].dropna().unique()) <= {0, 1, 0.0, 1.0}
+        ]
+        if invalid_kv:
+            flags.append(f"key_vars failed post-selection validation: {invalid_kv}")
+            key_vars = [v for v in key_vars if v not in invalid_kv]
+            key_var_rationale = {v: r for v, r in key_var_rationale.items() if v in key_vars}
+
+    if len(key_vars) < MIN_KEY_VARS:
+        flags.append(
+            f"INFEASIBLE: only {len(key_vars)} valid key_var(s) remain "
+            f"after baseline validation (need ≥{MIN_KEY_VARS}). "
+            "Paper requires manual specification — cannot run MAR simulation."
+        )
 
     # ── Confidence ─────────────────────────────────────────────────────────────
     confidence = _determine_confidence(spec, ranked, aux_var, data_available)

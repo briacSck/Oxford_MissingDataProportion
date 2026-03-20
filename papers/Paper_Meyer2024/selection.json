@@ -1,0 +1,29 @@
+{
+  "paper_id": "Paper_Meyer2024",
+  "key_vars": [
+    "preH",
+    "postH",
+    "VGM620",
+    "VGM621",
+    "VGM622"
+  ],
+  "aux_var": "",
+  "aux_var_description": "",
+  "key_var_rationale": {
+    "preH": "source: key IV; missing: 0.0%",
+    "postH": "source: control; missing: 0.0%",
+    "VGM620": "source: control; missing: 0.0%",
+    "VGM621": "source: control; missing: 0.0%",
+    "VGM622": "source: control; missing: 0.0%"
+  },
+  "aux_var_rationale": "no suitable aux var found",
+  "excluded_vars": {},
+  "selection_confidence": "partial",
+  "flags": [
+    "MAR mechanism: power-law P(missing) \u221d aux^1.5 (PI instructions). CONTEXT.md sigmoid formula is incorrect \u2014 see plan Gap 1.",
+    "aux var correlation relaxed to 0.05",
+    "no suitable aux var found \u2014 human must select"
+  ],
+  "human_confirmed": true,
+  "correlation_matrix": {}
+}

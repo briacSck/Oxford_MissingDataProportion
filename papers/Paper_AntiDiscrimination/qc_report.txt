@@ -1,0 +1,11 @@
+QC Report — Paper_AntiDiscrimination  [2026-03-20 10:23:03]
+RANDOM_SEED=2026 confirmed
+[PASS] Check 1: Row count — 22 rows (K=3×7+1)
+[PASS] Check 2: File count — 21 missing, 21 listwise (expected 21 each)
+[PASS] Check 3: Proportion coverage — all 7 labels present for each key var
+[PASS] Check 4: Baseline sign match — no published coef provided, skipped
+[FAIL] Check 5: All-NaN columns found: ['β̂', 'SE', 't-value', 'p-value']
+[PASS] Check 6: N monotonicity — N is non-increasing for all key vars
+[INFO] Check 7: RANDOM_SEED=2026 confirmed
+---------------------------------------
+QC FAILED: 1 issues found

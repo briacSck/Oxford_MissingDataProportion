@@ -1,0 +1,133 @@
+{
+  "paper_id": "Paper_Fang2022",
+  "key_vars": [
+    "lsubsidy_weak",
+    "prodummy",
+    "lnasset",
+    "llnage",
+    "lintangible"
+  ],
+  "aux_var": "lleverage",
+  "aux_var_description": "",
+  "key_var_rationale": {
+    "lsubsidy_weak": "source: key IV; missing: 12.0% \u22650: N",
+    "prodummy": "source: control; missing: 0.0% \u22650: Y",
+    "lnasset": "source: control; missing: 12.0% \u22650: Y",
+    "llnage": "source: control; missing: 12.0% \u22650: Y",
+    "lintangible": "source: control; missing: 12.0% \u22650: Y"
+  },
+  "aux_var_rationale": "mean |r| with other eligible vars: 0.211; non-negative: True",
+  "excluded_vars": {
+    "lsw_postdeparture": "not found in baseline data columns",
+    "lpostdeparture": "binary dummy (exactly 2 unique values in {0,1})",
+    "lsoe": "binary dummy (exactly 2 unique values in {0,1})",
+    "lpolitical": "binary dummy (exactly 2 unique values in {0,1})",
+    "year": "is a fixed-effect identifier"
+  },
+  "selection_confidence": "auto",
+  "flags": [
+    "MAR mechanism: power-law P(missing) \u221d aux^1.5 (PI instructions). CONTEXT.md sigmoid formula is incorrect \u2014 see plan Gap 1."
+  ],
+  "human_confirmed": true,
+  "correlation_matrix": {
+    "lsubsidy_weak": {
+      "lsubsidy_weak": 1.0,
+      "lnasset": -0.0618,
+      "llnage": -0.0237,
+      "lleverage": -0.1584,
+      "lintangible": 0.0242,
+      "lroa": 0.0298,
+      "ltobinq": 0.0982,
+      "prodummy": -0.0189,
+      "lsubsidy_s": 0.6228
+    },
+    "lnasset": {
+      "lsubsidy_weak": -0.0618,
+      "lnasset": 1.0,
+      "llnage": 0.2114,
+      "lleverage": 0.3423,
+      "lintangible": -0.0608,
+      "lroa": -0.0143,
+      "ltobinq": -0.4361,
+      "prodummy": 0.0033,
+      "lsubsidy_s": -0.1285
+    },
+    "llnage": {
+      "lsubsidy_weak": -0.0237,
+      "lnasset": 0.2114,
+      "llnage": 1.0,
+      "lleverage": 0.1684,
+      "lintangible": 0.0641,
+      "lroa": -0.1218,
+      "ltobinq": 0.0277,
+      "prodummy": -0.0499,
+      "lsubsidy_s": -0.0349
+    },
+    "lleverage": {
+      "lsubsidy_weak": -0.1584,
+      "lnasset": 0.3423,
+      "llnage": 0.1684,
+      "lleverage": 1.0,
+      "lintangible": 0.1027,
+      "lroa": -0.4052,
+      "ltobinq": -0.2396,
+      "prodummy": 0.0528,
+      "lsubsidy_s": -0.2209
+    },
+    "lintangible": {
+      "lsubsidy_weak": 0.0242,
+      "lnasset": -0.0608,
+      "llnage": 0.0641,
+      "lleverage": 0.1027,
+      "lintangible": 1.0,
+      "lroa": -0.128,
+      "ltobinq": 0.0597,
+      "prodummy": 0.0127,
+      "lsubsidy_s": 0.0254
+    },
+    "lroa": {
+      "lsubsidy_weak": 0.0298,
+      "lnasset": -0.0143,
+      "llnage": -0.1218,
+      "lleverage": -0.4052,
+      "lintangible": -0.128,
+      "lroa": 1.0,
+      "ltobinq": 0.1421,
+      "prodummy": -0.0232,
+      "lsubsidy_s": 0.0354
+    },
+    "ltobinq": {
+      "lsubsidy_weak": 0.0982,
+      "lnasset": -0.4361,
+      "llnage": 0.0277,
+      "lleverage": -0.2396,
+      "lintangible": 0.0597,
+      "lroa": 0.1421,
+      "ltobinq": 1.0,
+      "prodummy": -0.04,
+      "lsubsidy_s": 0.1373
+    },
+    "prodummy": {
+      "lsubsidy_weak": -0.0189,
+      "lnasset": 0.0033,
+      "llnage": -0.0499,
+      "lleverage": 0.0528,
+      "lintangible": 0.0127,
+      "lroa": -0.0232,
+      "ltobinq": -0.04,
+      "prodummy": 1.0,
+      "lsubsidy_s": -0.0217
+    },
+    "lsubsidy_s": {
+      "lsubsidy_weak": 0.6228,
+      "lnasset": -0.1285,
+      "llnage": -0.0349,
+      "lleverage": -0.2209,
+      "lintangible": 0.0254,
+      "lroa": 0.0354,
+      "ltobinq": 0.1373,
+      "prodummy": -0.0217,
+      "lsubsidy_s": 1.0
+    }
+  }
+}

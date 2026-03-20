@@ -50,24 +50,38 @@ def judge_gate2(
 
     All other cases call LLM.
     """
-    # Pre-check: aux_var overlap
-    if aux_var in selected_key_vars:
+    # Pre-check A: no key_vars
+    if not selected_key_vars:
         return GateDecision(
-            approved=False,
-            confidence="HIGH",
-            reasoning="aux_var must not be in key_vars — would corrupt MAR mechanism.",
-            action="HALT",
-            warning="aux_var is in selected_key_vars",
+            approved=False, confidence="HIGH",
+            reasoning="No key_vars selected — cannot run MAR simulation.",
+            action="HALT", warning="key_vars is empty",
         )
 
-    # All other cases → call LLM
+    # Pre-check B: empty aux_var
+    if not aux_var or not aux_var.strip():
+        return GateDecision(
+            approved=False, confidence="HIGH",
+            reasoning="aux_var is empty — MAR mechanism needs an auxiliary variable.",
+            action="HALT", warning="aux_var is empty",
+        )
+
+    # Pre-check C: aux_var in key_vars
+    if aux_var in selected_key_vars:
+        return GateDecision(
+            approved=False, confidence="HIGH",
+            reasoning="aux_var must not be in key_vars — corrupts MAR mechanism.",
+            action="HALT", warning="aux_var is in selected_key_vars",
+        )
+
+    # All deterministic checks passed — call LLM
     agent = BaseLLMAgent()
     user_msg = (
         f"Paper: {paper_id}\n"
         f"Spec: {json.dumps(spec, indent=2)}\n"
         f"Selected key variables: {selected_key_vars}\n"
         f"Auxiliary variable (MAR driver): {aux_var!r}\n"
-        f"Data summary (describe):\n{json.dumps(df_describe, indent=2)}\n"
+        f"Data summary (describe):\n{json.dumps(df_describe, indent=2, default=str)}\n"
     )
     if paper_context:
         user_msg = f"Paper context:\n{paper_context}\n\n" + user_msg

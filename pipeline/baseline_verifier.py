@@ -126,6 +126,8 @@ def _run_ols(
     cluster_var: Optional[str],
 ) -> dict:
     """OLS with optional FE dummies and clustering."""
+    if df.columns.duplicated().any():
+        df = df.loc[:, ~df.columns.duplicated()]
     cols_needed = list({y_col} | set(X_cols) | set(fe_cols))
     if cluster_var and cluster_var in df.columns:
         cols_needed.append(cluster_var)
@@ -186,10 +188,12 @@ def _run_fe(
     except ImportError:
         return _run_ols(df, y_col, X_cols, fe_cols, cluster_var)
 
+    if df.columns.duplicated().any():
+        df = df.loc[:, ~df.columns.duplicated()]
     cols_needed = list(set([y_col] + X_cols + fe_cols))
     if cluster_var and cluster_var in df.columns:
         cols_needed.append(cluster_var)
-    cols_needed = [c for c in cols_needed if c in df.columns]
+    cols_needed = list(dict.fromkeys(c for c in cols_needed if c in df.columns))
 
     work = df[cols_needed].copy().dropna()
     if work.empty:

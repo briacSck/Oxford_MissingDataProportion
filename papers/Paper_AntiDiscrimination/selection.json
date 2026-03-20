@@ -1,0 +1,55 @@
+{
+  "paper_id": "Paper_AntiDiscrimination",
+  "key_vars": [
+    "ln_at_adj",
+    "state_inc_growth",
+    "ni_at"
+  ],
+  "aux_var": "ppent_at",
+  "aux_var_description": "",
+  "key_var_rationale": {
+    "ln_at_adj": "source: control; missing: 0.0% \u22650: Y",
+    "state_inc_growth": "source: control; missing: 0.0% \u22650: N",
+    "ni_at": "source: control; missing: 1.2% \u22650: N"
+  },
+  "aux_var_rationale": "mean |r| with other eligible vars: 0.121; non-negative: True",
+  "excluded_vars": {
+    "ad_law_enforce": "not found in baseline data columns",
+    "ad_law_notenforce": "not found in baseline data columns",
+    "div_payer": "binary dummy (exactly 2 unique values in {0,1})",
+    "state_id": "matches ID/time name pattern (rule 4)",
+    "fyear": "is a fixed-effect identifier"
+  },
+  "selection_confidence": "auto",
+  "flags": [
+    "MAR mechanism: power-law P(missing) \u221d aux^1.5 (PI instructions). CONTEXT.md sigmoid formula is incorrect \u2014 see plan Gap 1.",
+    "aux var correlation relaxed to 0.05"
+  ],
+  "human_confirmed": true,
+  "correlation_matrix": {
+    "ln_at_adj": {
+      "ln_at_adj": 1.0,
+      "ni_at": 0.0062,
+      "ppent_at": 0.2566,
+      "state_inc_growth": -0.0116
+    },
+    "ni_at": {
+      "ln_at_adj": 0.0062,
+      "ni_at": 1.0,
+      "ppent_at": -0.0909,
+      "state_inc_growth": 0.0788
+    },
+    "ppent_at": {
+      "ln_at_adj": 0.2566,
+      "ni_at": -0.0909,
+      "ppent_at": 1.0,
+      "state_inc_growth": -0.0188
+    },
+    "state_inc_growth": {
+      "ln_at_adj": -0.0116,
+      "ni_at": 0.0788,
+      "ppent_at": -0.0188,
+      "state_inc_growth": 1.0
+    }
+  }
+}
