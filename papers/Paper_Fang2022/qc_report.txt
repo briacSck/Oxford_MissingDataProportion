@@ -1,7 +1,7 @@
-QC Report — Paper_AntiDiscrimination  [2026-03-20 20:14:15]
+QC Report — Paper_Fang2022  [2026-03-20 20:27:57]
 RANDOM_SEED=2026 confirmed
-[PASS] Check 1: Row count — 22 rows (K=3×7+1)
-[PASS] Check 2: File count — 21 missing, 21 listwise (expected 21 each)
+[PASS] Check 1: Row count — 36 rows (K=5×7+1)
+[PASS] Check 2: File count — 35 missing, 35 listwise (expected 35 each)
 [PASS] Check 3: Proportion coverage — all 7 labels present for each key var
 [PASS] Check 4: Baseline sign match — no published coef provided, skipped
 [PASS] Check 5: No all-NaN columns

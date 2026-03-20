@@ -19,7 +19,7 @@
   "aux_var_rationale": "mean |r| with other eligible vars: 0.228; non-negative: True",
   "excluded_vars": {
     "treat": "binary dummy (exactly 2 unique values in {0,1})",
-    "eventdate": "not found in baseline data columns",
+    "eventdate": "matches ID/time name pattern (rule 4)",
     "loss": "binary dummy (exactly 2 unique values in {0,1})"
   },
   "selection_confidence": "partial",
@@ -223,5 +223,6 @@
       "competition": -0.0937,
       "ppe": 1.0
     }
-  }
+  },
+  "selection_repaired": null
 }

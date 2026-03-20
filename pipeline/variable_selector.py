@@ -80,6 +80,12 @@ _ID_TIME_NAMES: set[str] = {
 _ID_SUFFIXES  = ("_id", "_year", "_date", "_time", "_code", "_region", "_province")
 _ID_PREFIXES  = ("id_",)
 
+# Tokens used for compound-name time detection (Rule 12). Length ≥ 4 guards
+# against false positives from single-char tokens in _ID_TIME_NAMES.
+_COMPOUND_TIME_TOKENS: frozenset[str] = frozenset({
+    "year", "time", "date", "month", "quarter", "period",
+})
+
 
 def _is_id_time(name: str) -> bool:
     low = name.lower()
@@ -90,6 +96,87 @@ def _is_id_time(name: str) -> bool:
             return True
     for pre in _ID_PREFIXES:
         if low.startswith(pre):
+            return True
+    # Rule 12: compound time names (e.g. "quartertime" starts with "quarter";
+    # "firmyear" ends with "year"). Guards: token length ≥ 4, name must be longer.
+    for token in _COMPOUND_TIME_TOKENS:
+        if len(low) > len(token) and (low.startswith(token) or low.endswith(token)):
+            return True
+    return False
+
+
+# ── Count variable detection (Rule 13) ───────────────────────────────────────
+
+_COUNT_EXACT: frozenset[str] = frozenset({"n", "k", "obs", "nobs", "freq", "count"})
+_COUNT_PREFIXES_13 = ("n_", "num_", "cnt_", "count_", "nobs_")
+_COUNT_SUFFIXES_13 = ("_n", "_count", "_cnt", "_obs", "_nobs", "_num", "_k", "_freq")
+
+
+def _is_count_var(name: str, df: pd.DataFrame) -> bool:
+    """True if name looks like a count/sample-size variable with low integer cardinality.
+
+    Requires BOTH a name-pattern match AND integer-like dtype with <200 unique values,
+    so a legitimate continuous float named 'n' is not excluded.
+    """
+    low = name.lower()
+    name_match = (
+        low in _COUNT_EXACT
+        or any(low.startswith(p) for p in _COUNT_PREFIXES_13)
+        or any(low.endswith(s) for s in _COUNT_SUFFIXES_13)
+    )
+    if not name_match:
+        return False
+    if name not in df.columns:
+        return False
+    col = df[name].dropna()
+    is_integer_like = df[name].dtype.kind in ("i", "u") or (
+        df[name].dtype.kind == "f" and len(col) > 0 and (col % 1 == 0).all()
+    )
+    return is_integer_like and col.nunique() < 200
+
+
+# ── Dep-var transform detection (Rule 14) ────────────────────────────────────
+
+_TRANSFORM_PREFIXES_U = (  # underscore-separated prefixes
+    "post_lav_", "pre_lav_", "lav_", "log_", "ln_", "l_",
+    "post_l_", "pre_l_", "d_", "dl_", "diff_", "delta_",
+    "lag_", "l1_", "l2_", "av_", "avg_", "mean_",
+)
+_TRANSFORM_PREFIXES_BARE = ("log", "ln", "l", "d")  # camelCase: logSales → Sales
+
+
+def _normalize_depvar_base(name: str) -> str:
+    """Return lowercase base name after stripping common econometric transform prefixes."""
+    low = name.lower()
+    for pfx in _TRANSFORM_PREFIXES_U:
+        if low.startswith(pfx):
+            return low[len(pfx):]
+    # camelCase: only strip if next char is uppercase or digit (avoids "later" → "ater")
+    for pfx in _TRANSFORM_PREFIXES_BARE:
+        if name.startswith(pfx) and len(name) > len(pfx):
+            nxt = name[len(pfx)]
+            if nxt.isupper() or nxt.isdigit():
+                return name[len(pfx):].lower()
+    return low
+
+
+def _is_depvar_transform(v: str, dep_var: str) -> bool:
+    """True if v is an obvious level/log/lag/average transform of dep_var.
+
+    Uses normalised base-name equality and suffix containment (min length 6)
+    to detect e.g. TotalVisits / av_TotalVisits / lav_Visits for dep_var
+    logTotalVisits without false-positives on short names.
+    """
+    if not dep_var or v == dep_var:
+        return False  # dep_var itself excluded by Rule 1
+    base_dv = _normalize_depvar_base(dep_var)
+    base_v  = _normalize_depvar_base(v)
+    if base_v == base_dv:
+        return True
+    # Suffix containment: "totalvisits".endswith("visits") → lav_Visits is a transform
+    _MIN = 6
+    if len(base_v) >= _MIN and len(base_dv) >= _MIN:
+        if base_dv.endswith(base_v) or base_v.endswith(base_dv):
             return True
     return False
 
@@ -171,6 +258,14 @@ def _filter_eligible_vars(
             excluded[v] = "matches ID/time name pattern (rule 4)"
             continue
 
+        # Rule 14: dep_var transform (name-based, no data required)
+        if dv and _is_depvar_transform(v, dv):
+            excluded[v] = (
+                f"apparent transform of dependent variable {dv!r} "
+                "(level/log/lag/average — rule 14)"
+            )
+            continue
+
         # Data-based rules — skip if no data
         if df is not None:
             # Rule 0: variable not in baseline columns (cannot validate or use)
@@ -178,9 +273,9 @@ def _filter_eligible_vars(
                 excluded[v] = "not found in baseline data columns"
                 continue
 
-            # Rule 7: object/string dtype
-            if v in df.columns and df[v].dtype == object:
-                excluded[v] = "object/string dtype"
+            # Rule 7: non-numeric dtype (object, StringDtype, ArrowDtype, etc.)
+            if v in df.columns and not pd.api.types.is_numeric_dtype(df[v]):
+                excluded[v] = "non-numeric dtype (string/object/arrow)"
                 continue
 
             # Rule 8: >50% missing
@@ -211,9 +306,99 @@ def _filter_eligible_vars(
                     excluded[v] = "all values ≤ 0 (power-law MAR requires non-negative)"
                     continue
 
+            # Rule 11: named categorical code (integer dtype, name suggests
+            # province/region/dummy coding, and more than 2 unique values)
+            if v in df.columns and df[v].dtype.kind in ("i", "u"):
+                vl = v.lower()
+                is_named_cat = (
+                    vl.endswith("dummy") or vl.endswith("_code")
+                    or vl.endswith("code") or "province" in vl
+                    or ("region" in vl and not vl.endswith("_region"))
+                )
+                if is_named_cat:
+                    non_na_count = df[v].dropna().nunique()
+                    if non_na_count > 2:
+                        excluded[v] = (
+                            f"named categorical code — {non_na_count} unique integer values "
+                            "(province/region/dummy coding unsuitable for MAR key_var)"
+                        )
+                        continue
+
+            # Rule 13: count/small-integer variable
+            if _is_count_var(v, df):
+                excluded[v] = (
+                    f"count or sample-size variable (integer-like, "
+                    f"{df[v].dropna().nunique()} unique values — rule 13)"
+                )
+                continue
+
         eligible.append(v)
 
     return eligible, excluded
+
+
+def _find_baseline_candidates(
+    df: pd.DataFrame,
+    spec: dict,
+    already_eligible: list[str],
+    excluded: dict[str, str],
+) -> tuple[list[str], str]:
+    """Two-stage repair: find eligible candidates when spec-based pool is empty.
+
+    Returns (candidates, source) where source is "spec_controls" or "baseline_columns".
+    Applies all data-based eligibility rules (Rules 0, 4, 5, 6, 7, 8, 10, 11).
+    Does NOT apply structural spec rules (dep_var / FE / IV are still excluded).
+    """
+    if df is None:
+        return [], "none"
+
+    dep_var = spec.get("dependent_var") or ""
+    fe_set   = set(spec.get("fixed_effects")     or [])
+    iv_set   = set(spec.get("instrumental_vars") or [])
+    already  = set(already_eligible) | set(excluded)
+
+    def _passes_data_rules(v: str) -> bool:
+        if v in already or v == dep_var or v in fe_set or v in iv_set:
+            return False
+        if _is_id_time(v) or _is_malformed(v):
+            return False
+        if dep_var and _is_depvar_transform(v, dep_var):
+            return False
+        if v not in df.columns:
+            return False
+        if not pd.api.types.is_numeric_dtype(df[v]):
+            return False
+        if df[v].isna().mean() > 0.50:
+            return False
+        # Rule 6: high-uniqueness identifier check (integer/object only — same as _filter_eligible_vars)
+        if df[v].dtype.kind in ("i", "u", "O"):
+            n_uniq = df[v].nunique()
+            if n_uniq / len(df) > 0.90 and n_uniq > 50:
+                return False
+        non_na = df[v].dropna()
+        unique_vals = set(non_na.unique())
+        if len(unique_vals) == 2 and unique_vals <= {0, 1, 0.0, 1.0}:
+            return False
+        if _is_count_var(v, df):
+            return False
+        if len(non_na) > 0 and (non_na <= 0).all():
+            return False
+        if df[v].dtype.kind in ("i", "u"):
+            vl = v.lower()
+            if (vl.endswith("dummy") or vl.endswith("code") or "province" in vl):
+                if df[v].dropna().nunique() > 2:
+                    return False
+        return True
+
+    # Stage 1: spec control_vars present in baseline (spec-grounded)
+    spec_controls = list(spec.get("control_vars") or [])
+    stage1 = [v for v in spec_controls if _passes_data_rules(v)]
+    if len(stage1) >= 3:
+        return stage1, "spec_controls"
+
+    # Stage 2: all baseline columns (arbitrary — use only if Stage 1 too small)
+    stage2 = [v for v in df.columns if _passes_data_rules(v)]
+    return stage2, "baseline_columns"
 
 
 # ── Scoring ───────────────────────────────────────────────────────────────────
@@ -739,6 +924,32 @@ def select_variables(
     eligible_vars, excluded_vars = _filter_eligible_vars(spec, data)
     flags: list[str] = []
 
+    # Repair pass: when ALL spec candidates are absent from baseline
+    _repair_used = None
+    if data is not None and len(eligible_vars) == 0:
+        repair_candidates, repair_source = _find_baseline_candidates(
+            data, spec, eligible_vars, excluded_vars
+        )
+        if len(repair_candidates) >= 3:
+            eligible_vars = repair_candidates
+            _repair_used = repair_source
+            flags.append(
+                f"spec-based candidates yielded 0 eligible vars; repair pass "
+                f"added {len(repair_candidates)} candidate(s) from {repair_source!r} "
+                "— human review recommended"
+            )
+        elif repair_candidates:
+            flags.append(
+                f"INFEASIBLE: repair pass found only {len(repair_candidates)} candidate(s) "
+                f"from {repair_source!r} (need ≥3). "
+                "Paper requires manual specification."
+            )
+        else:
+            flags.append(
+                "INFEASIBLE: 0 eligible vars from spec AND repair pass found nothing "
+                "in baseline — paper cannot run MAR simulation."
+            )
+
     # ── Step A: reserve aux_var first (key IVs protected from aux pool) ────────
     key_iv_set = set(spec.get("key_independent_vars") or [])
     aux_pool = [v for v in eligible_vars if v not in key_iv_set] or eligible_vars
@@ -770,7 +981,7 @@ def select_variables(
         invalid_kv = [
             v for v in key_vars
             if v not in data.columns
-            or data[v].dtype == object
+            or not pd.api.types.is_numeric_dtype(data[v])
             or set(data[v].dropna().unique()) <= {0, 1, 0.0, 1.0}
         ]
         if invalid_kv:
@@ -801,6 +1012,7 @@ def select_variables(
         "flags":                flags,
         "human_confirmed":      False,
         "correlation_matrix":   corr_matrix,
+        "selection_repaired":   _repair_used,   # None | "spec_controls" | "baseline_columns"
         # internal refs for edit-loop re-validation (stripped before return)
         "_df_ref":   data,
         "_spec_ref": spec,

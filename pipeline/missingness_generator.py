@@ -24,6 +24,24 @@ from pipeline.config import (
 logger = logging.getLogger(__name__)
 
 
+# ── Custom exception ───────────────────────────────────────────────────────────
+
+class MissingnessCalibrationError(RuntimeError):
+    """Raised when missingness cannot be calibrated to the target proportion."""
+    def __init__(self, var: str, target: float, eligible_n: int,
+                 realized_count: int, realized_rate: float):
+        self.var = var
+        self.target = target
+        self.eligible_n = eligible_n
+        self.realized_count = realized_count
+        self.realized_rate = realized_rate
+        super().__init__(
+            f"Missingness calibration failed for '{var}': "
+            f"target={target:.3f}, eligible_n={eligible_n}, "
+            f"realized_count={realized_count}, realized_rate={realized_rate:.4f}"
+        )
+
+
 # ── I/O helpers ───────────────────────────────────────────────────────────────
 
 def _load_baseline(path: str) -> pd.DataFrame:
@@ -107,18 +125,42 @@ def generate_missingness(
     n = len(df)
     aux_vals = df[aux_var].values.astype(float)
 
-    # Shift so all values are strictly positive
-    if np.any(aux_vals <= 0):
-        aux_vals = aux_vals + abs(aux_vals.min()) + 1.0
+    # NaN-safe shift: use nanmin so NaN rows don't corrupt the shift
+    finite_min = np.nanmin(aux_vals)
+    if np.isnan(finite_min):
+        raise ValueError(
+            f"[{paper_dir}] aux_var '{aux_var}' has no finite values — "
+            "cannot compute MAR weights."
+        )
+    if finite_min <= 0:
+        aux_vals = aux_vals + abs(finite_min) + 1.0
 
-    # Power-law weights and probabilities
-    weights = aux_vals ** MAR_STRENGTH
-    probs = weights / weights.sum()
+    # NaN rows get weight 0 (zero probability of missingness)
+    weights = np.where(np.isnan(aux_vals), 0.0, aux_vals ** MAR_STRENGTH)
+    total_w = weights.sum()
+    if total_w == 0.0:
+        raise ValueError(
+            f"[{paper_dir}] aux_var '{aux_var}': total weight is zero after NaN masking."
+        )
+    probs = weights / total_w
 
     results: dict[str, dict[str, str]] = {}
 
     for key_var in key_vars:
         results[key_var] = {}
+
+        # Eligible rows: key_var is currently observed in baseline
+        eligible_mask = ~df[key_var].isna()
+        n_eligible = int(eligible_mask.sum())
+        if n_eligible == 0:
+            raise MissingnessCalibrationError(
+                var=key_var, target=0.0, eligible_n=0,
+                realized_count=0, realized_rate=0.0,
+            )
+
+        prev_count = -1         # for runtime monotonicity assertion
+        flat_streak = 0         # consecutive identical counts despite increasing targets
+
         for proportion, label in zip(MISSING_PROPORTIONS, PROPORTION_LABELS):
             # Binary-search for scaling scalar
             s = _find_scalar(probs, proportion)
@@ -126,9 +168,41 @@ def generate_missingness(
 
             # Reproducible draw — seed before EVERY draw
             np.random.seed(RANDOM_SEED)
-            missing_mask = np.random.rand(n) < scaled
+            rand_vals = np.random.rand(n)
+            # Apply only to eligible (non-missing) rows
+            missing_mask = (rand_vals < scaled) & eligible_mask.values
 
-            actual_rate = missing_mask.mean()
+            actual_count = int(missing_mask.sum())
+            actual_rate = actual_count / n_eligible
+
+            # Runtime: zero missing when target > 0
+            if proportion > 0 and actual_count == 0:
+                raise MissingnessCalibrationError(
+                    var=key_var, target=proportion, eligible_n=n_eligible,
+                    realized_count=0, realized_rate=0.0,
+                )
+
+            # Runtime: strict monotone — count must never decrease
+            if prev_count >= 0 and actual_count < prev_count:
+                raise MissingnessCalibrationError(
+                    var=key_var, target=proportion, eligible_n=n_eligible,
+                    realized_count=actual_count, realized_rate=actual_rate,
+                )
+
+            # Runtime: flat streak warning (same count for ≥3 consecutive increasing targets)
+            if prev_count >= 0 and actual_count == prev_count:
+                flat_streak += 1
+                if flat_streak >= 3:
+                    logger.warning(
+                        "[%s] %s: missing count flat at %d for ≥3 consecutive proportions "
+                        "(possible calibration degeneration)",
+                        paper_dir, key_var, actual_count,
+                    )
+            else:
+                flat_streak = 0
+
+            prev_count = actual_count
+
             if abs(actual_rate - proportion) >= 0.005:
                 logger.warning(
                     "[%s] %s MAR_%s: actual_rate=%.4f, target=%.4f — diff=%.4f",
@@ -144,9 +218,9 @@ def generate_missingness(
 
             results[key_var][label] = str(out_path)
             logger.info(
-                "[%s] %s_MAR_%s: target=%.2f actual=%.4f N_missing=%d",
+                "[%s] %s_MAR_%s: target=%.2f actual=%.4f N_eligible=%d N_missing=%d",
                 paper_dir, key_var, label, proportion, actual_rate,
-                missing_mask.sum(),
+                n_eligible, actual_count,
             )
 
     return results

@@ -26,6 +26,39 @@ import pandas as pd
 import statsmodels.api as sm
 
 
+# ── Custom exception ──────────────────────────────────────────────────────────
+
+class BaselineSpecError(RuntimeError):
+    """Raised when required columns are absent from the baseline DataFrame.
+
+    Attributes
+    ----------
+    missing_dep_var : str | None
+    missing_xcols   : list[str]
+    missing_fe_cols : list[str]
+    missing_cluster : str | None
+    """
+    def __init__(self, paper_id: str, missing_dep_var=None,
+                 missing_xcols=None, missing_fe_cols=None, missing_cluster=None):
+        self.missing_dep_var  = missing_dep_var
+        self.missing_xcols    = missing_xcols or []
+        self.missing_fe_cols  = missing_fe_cols or []
+        self.missing_cluster  = missing_cluster
+        parts = []
+        if missing_dep_var:
+            parts.append(f"dep_var={missing_dep_var!r}")
+        if missing_xcols:
+            parts.append(f"X_cols={missing_xcols}")
+        if missing_fe_cols:
+            parts.append(f"fe_cols={missing_fe_cols}")
+        if missing_cluster:
+            parts.append(f"cluster_var={missing_cluster!r}")
+        super().__init__(
+            f"[{paper_id}] BaselineSpecError — columns absent from data: "
+            + "; ".join(parts)
+        )
+
+
 # ── Estimator normalisation ───────────────────────────────────────────────────
 
 _ESTIMATOR_MAP: dict[str, str] = {
@@ -126,6 +159,9 @@ def _run_ols(
     cluster_var: Optional[str],
 ) -> dict:
     """OLS with optional FE dummies and clustering."""
+    if not y_col or y_col not in df.columns:
+        return {"result": None, "work": pd.DataFrame(), "n_obs": 0,
+                "flag": f"dep_var '{y_col}' not found in data"}
     if df.columns.duplicated().any():
         df = df.loc[:, ~df.columns.duplicated()]
     cols_needed = list({y_col} | set(X_cols) | set(fe_cols))
@@ -183,6 +219,9 @@ def _run_fe(
     time_col: Optional[str],
 ) -> dict:
     """FE via linearmodels AbsorbingLS; falls back to OLS with dummies on failure."""
+    if not y_col or y_col not in df.columns:
+        return {"result": None, "work": pd.DataFrame(), "n_obs": 0,
+                "flag": f"dep_var '{y_col}' not found in data"}
     try:
         from linearmodels import AbsorbingLS  # type: ignore
     except ImportError:
@@ -312,13 +351,22 @@ def _extract_coef(result, key_var: str) -> tuple:
         else:
             matches = [i for i in params.index if key_var in str(i)]
             if not matches:
+                import logging as _logging
+                _logging.getLogger(__name__).debug(
+                    "_extract_coef: key_var=%r not found in params %s",
+                    key_var, list(params.index)[:10],
+                )
                 return None, None, None, None
             name = matches[0]
 
-        coef   = float(params[name])
-        se     = float(result.bse[name])
-        tstat  = float(result.tvalues[name])
-        pvalue = float(result.pvalues[name])
+        coef = float(params[name])
+        # Dual-API: statsmodels uses .bse / .tvalues; linearmodels uses .std_errors / .tstats
+        _bse   = getattr(result, "bse",     getattr(result, "std_errors", None))
+        _tvals = getattr(result, "tvalues", getattr(result, "tstats",     None))
+        _pvals = getattr(result, "pvalues", None)
+        se     = float(_bse[name])   if _bse   is not None else None
+        tstat  = float(_tvals[name]) if _tvals is not None else None
+        pvalue = float(_pvals[name]) if _pvals is not None else None
         return coef, se, tstat, pvalue
     except Exception:
         return None, None, None, None

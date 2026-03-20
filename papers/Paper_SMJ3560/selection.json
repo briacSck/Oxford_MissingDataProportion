@@ -15,7 +15,8 @@
   "selection_confidence": "manual",
   "flags": [
     "MAR mechanism: power-law P(missing) \u221d aux^1.5 (PI instructions). CONTEXT.md sigmoid formula is incorrect \u2014 see plan Gap 1.",
-    "only 2 distinct variable(s) remain for key_vars (after reserving aux_var='RevenueLikert') \u2014 need at least 3; human must select or paper may be infeasible"
+    "only 2 distinct variable(s) remain for key_vars (after reserving aux_var='RevenueLikert') \u2014 need at least 3; human must select or paper may be infeasible",
+    "INFEASIBLE: only 0 valid key_var(s) remain after baseline validation (need \u22653). Paper requires manual specification \u2014 cannot run MAR simulation."
   ],
   "human_confirmed": true,
   "correlation_matrix": {
@@ -34,5 +35,6 @@
       "RevenueLikert": 0.7248,
       "CustomersLikert": 1.0
     }
-  }
+  },
+  "selection_repaired": null
 }

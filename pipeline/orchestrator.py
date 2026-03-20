@@ -200,10 +200,23 @@ def run_paper(paper_dir: str, use_llm_gates: bool = False,
         )
         if use_llm_gates:
             from pipeline.llm_agents.llm_orchestrator import llm_gate2
+            _repair_ctx = ""
+            if selection.get("selection_repaired"):
+                _absent = (spec.get("key_independent_vars") or ["(unknown)"])
+                _repair_ctx = (
+                    f"IMPORTANT: The spec's original key variable(s) {_absent} are "
+                    f"absent from the baseline dataset (selection_repaired="
+                    f"'{selection['selection_repaired']}'). The listed key_vars are "
+                    f"repair-pass substitutes drawn from the baseline columns. Evaluate "
+                    f"them on MAR suitability criteria (continuous, non-binary, "
+                    f"sufficient variation, not an ID/time index) rather than on "
+                    f"whether they match the spec's original variable names."
+                )
             gate2_ok = llm_gate2(
                 paper_name, spec,
                 selection["key_vars"], selection["aux_var"],
                 baseline_df, str(_paper_dir),
+                paper_context=_repair_ctx,
             )
         else:
             gate2_ok = _human_gate("Variable Selection — final confirm", gate2_summary)
