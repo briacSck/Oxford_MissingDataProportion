@@ -48,9 +48,23 @@ outputs/
 **/listwise/
 **/baseline_data.csv
 
+<<<<<<< HEAD
 # Excel and other run artifacts (keep only templates tracked)
 **/paper_info.xlsx
 **/regression_results.xlsx
+||||||| parent of e5374fa (Fix gitignore problem, that untracked all of the project's deliverables (each paper's paper_info and regression_result files))
+# Large intermediate data files — do not commit parquet baselines
+**/baseline.parquet
+
+# Excel and other run artifacts (keep only templates tracked)
+**/paper_info.xlsx
+**/regression_results.xlsx
+=======
+# Large intermediate data files — do not commit parquet baselines
+**/baseline.parquet
+
+# Excel and other run artifacts
+>>>>>>> e5374fa (Fix gitignore problem, that untracked all of the project's deliverables (each paper's paper_info and regression_result files))
 !_templates/paper_info_template.xlsx
 !_templates/regression_results_template.xlsx
 
